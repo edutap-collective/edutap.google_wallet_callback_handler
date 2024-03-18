@@ -1,9 +1,11 @@
-import asyncio
-from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from .model import CallbackMessage
+from .model import SignedMessage
+from aiokafka import AIOKafkaConsumer
+from aiokafka import AIOKafkaProducer
 from pydantic import ValidationError
-from aiokafka.errors import KafkaConnectionError
 
-from ecc.google.wallet.model import CallbackMessage, SignedMessage
+import asyncio
+
 
 def decrypt_message(message: str) -> str:
     """dummy decryption of message
@@ -11,20 +13,20 @@ def decrypt_message(message: str) -> str:
     this library has to be extendend for using the "ECv2SigningOnly" protocol
     """
     try:
-        message: CallbackMessage = CallbackMessage.parse_raw(message)
-        signedMessage = SignedMessage.parse_raw(message.signedMessage)
+        callback_message: CallbackMessage = CallbackMessage.parse_raw(message)
+        signedMessage = SignedMessage.parse_raw(callback_message.signedMessage)
         print(f"------------dummy decrypted message: {signedMessage} ")
         decrypted_message = signedMessage
         return decrypted_message.json(indent=4)
-        
+
     except ValidationError as e:
         print("Error parsing message: ", e)
         raise
-        
+
 
 async def process_messages(broker_url: str, topic: str, target_topic: str):
     consumer: AIOKafkaConsumer | None = None
-    
+
     while consumer is None:
         try:
             consumer = AIOKafkaConsumer(
@@ -41,8 +43,8 @@ async def process_messages(broker_url: str, topic: str, target_topic: str):
         except Exception as e:
             print(f"Error connecting to broker {broker_url}: {e}, retrying in 1 second")
             consumer = None
-            asyncio.sleep(1)
-            
+            await asyncio.sleep(1)
+
     try:
         async for msg in consumer:
             print("Received message: ", msg.value.decode("utf-8"))

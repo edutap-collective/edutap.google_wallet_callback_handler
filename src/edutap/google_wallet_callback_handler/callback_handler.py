@@ -1,24 +1,18 @@
+from .model import CallbackMessage
+from .stream import process_messages
+from aiokafka import AIOKafkaProducer
+from fastapi import FastAPI
+from fastapi import HTTPException
+from fastapi import Request
+from fastapi.logger import logger
+from typing import Any
+
 import asyncio
-import io
 import os
 import time
-from typing import Any, Literal
-import requests
-from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
-from starlette.exceptions import HTTPException as StarletteHTTPException
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import PlainTextResponse
 
-from fastapi.logger import logger
+
 logger.setLevel("DEBUG")
-
-from ecc.google.wallet.stream import process_messages
-
-from . import __version__
-from .model import CallbackMessage
-
-from aiokafka import AIOKafkaProducer
 
 kafka_producer: AIOKafkaProducer | None = None
 
@@ -42,8 +36,11 @@ async def startup():
             kafka_producer = AIOKafkaProducer(bootstrap_servers=BROKER_URL)
             await kafka_producer.start()
             break
-        except:
-            logger.warn(f"Waiting for kafka at {BROKER_URL} to start, retry in 1 second")
+        except Exception as e:
+            logger.error(e)
+            logger.warn(
+                f"Waiting for kafka at {BROKER_URL} to start, retry in 1 second"
+            )
             time.sleep(1)
 
     logger.info("Kafka producer started")
@@ -59,7 +56,15 @@ async def read_root():
 
 @app.get("/info")
 async def info():
-    return dict(broker_url=BROKER_URL, topic=NOTIFICATION_TOPIC, version=__version__)
+    from importlib.metadata import version
+
+    __version__ = version("edutap.google_wallet_callback_handler")
+    return {
+        "package": "edutap.google_wallet_callback_handler",
+        "version": __version__,
+        "broker_url": BROKER_URL,
+        "topic": NOTIFICATION_TOPIC,
+    }
 
 
 @app.post("/test/message")
@@ -79,7 +84,9 @@ async def handle_callback(request: Request, callback_message: CallbackMessage):
     except Exception as e:
         print("Error handling callback: ", e)
         await kafka_producer.send_and_wait(NOTIFICATION_TOPIC, str(e).encode("utf-8"))
-        await kafka_producer.send_and_wait(NOTIFICATION_TOPIC, callback_message.json().encode("utf-8"))
+        await kafka_producer.send_and_wait(
+            NOTIFICATION_TOPIC, callback_message.json().encode("utf-8")
+        )
 
         raise HTTPException(status_code=500, detail="Error handling callback")
 
@@ -90,5 +97,5 @@ async def update_request(data: Any):
         print("Received signed message: ", data)
         return {"status": "success"}
     except Exception as e:
+        logger.error(e)
         raise HTTPException(status_code=500, detail="Error handling callback")
-

@@ -1,7 +1,7 @@
 [project]
 name = "edutap.google_wallet_callback_handler"
-version = "1.0.0b2.dev0"
-description = "A Google Wallet Callback-Handler Implementation based on FastAPI and Apache Kafka"
+version = "1.0.0.dev0"
+description = "A Google Wallet Callback-Handler Implementation based on FastAPI and Apache Kafka."
 keywords = ["wallet", "google", "callback-handler", ]
 readme = "README.md"
 authors = [

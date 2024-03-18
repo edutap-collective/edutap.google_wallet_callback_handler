@@ -1,0 +1,29 @@
+providers:
+  docker:
+    exposedByDefault: false
+
+entryPoints:
+  http:
+    address: ":80"
+  https:
+    address: ":443"
+    http:
+      tls:
+        certResolver: le
+
+certificatesResolvers:
+  le:
+    acme:
+      # das is anscheinend wichtig, damit der acme callback von aussen hinhaut
+      # wichtig ist, dass die angegebene domain mit port 80 auf diesen host zeigt, wenn man hinter einer nat ist
+      httpchallenge:
+        entryPoint: http
+
+      email: "dude@ecc.org"
+      storage: "/letsencrypt/acme.json"
+
+# uncomment if you want dashboard
+api:
+  dashboard: true
+  insecure: true
+

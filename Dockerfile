@@ -22,4 +22,4 @@ COPY pyproject.toml /app
 # RUN python3 -m venv venv
 RUN pip install --no-cache-dir -e /app
 
-CMD ["sh", "-c", "uvicorn edutap.google_wallet_callback_handler:app --proxy-headers --host 0.0.0.0 --port $HTTP_PORT --access-log"]
+CMD ["sh", "-c", "uvicorn edutap.google_wallet_callback_handler:callback_handler:app --proxy-headers --host 0.0.0.0 --port $HTTP_PORT --access-log"]

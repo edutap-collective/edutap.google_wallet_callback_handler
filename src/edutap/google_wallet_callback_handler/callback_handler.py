@@ -37,7 +37,7 @@ logger.info(f"BROKER_URL: {BROKER_URL}")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initializing
-    print("BROKER_URL: ", BROKER_URL)
+    logger.info("BROKER_URL: %s", BROKER_URL)
     global kafka_producer
     retries = 50
     for i in range(retries):
@@ -52,14 +52,13 @@ async def lifespan(app: FastAPI):
             )
             time.sleep(1)
 
-    logger.info("Kafka producer started")
+    logger.info("Kafka Producer started")
 
-    print("creating stream processor for google wallet notifications")
+    logger.info("creating stream processor for google wallet notifications")
     asyncio.create_task(process_messages(BROKER_URL, NOTIFICATION_TOPIC, TARGET_TOPIC))
 
     yield
     # Shutdown
-
 
 
 @app.get("/")
@@ -87,15 +86,15 @@ async def handle_callback(request: Request, callback_message: CallbackMessage):
     try:
         print("Received signed message: ", callback_message)
         # callback_message.repair()
-        msg_text = callback_message.json().encode("utf-8")
-        print(f"sending message to {NOTIFICATION_TOPIC}, text: {msg_text}")
+        msg_text = callback_message.model_dump_json().encode("utf-8")
+        logger.debug("sending message to %s, text: %s", NOTIFICATION_TOPIC, msg_text)
         await kafka_producer.send_and_wait(NOTIFICATION_TOPIC, msg_text)
         return {"status": "success"}
     except Exception as e:
         print("Error handling callback: ", e)
         await kafka_producer.send_and_wait(NOTIFICATION_TOPIC, str(e).encode("utf-8"))
         await kafka_producer.send_and_wait(
-            NOTIFICATION_TOPIC, callback_message.json().encode("utf-8")
+            NOTIFICATION_TOPIC, callback_message.model_dump_json().encode("utf-8")
         )
 
         raise HTTPException(status_code=500, detail="Error handling callback")
@@ -104,7 +103,7 @@ async def handle_callback(request: Request, callback_message: CallbackMessage):
 @app.post("/google/update_request")
 async def update_request(data: Any):
     try:
-        print("Received signed message: ", data)
+        logger.debug("Received signed message: ", data)
         return {"status": "success"}
     except Exception as e:
         logger.error(e)

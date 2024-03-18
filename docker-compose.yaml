@@ -7,7 +7,7 @@ services:
     container_name: callback-handler
     dns:
       ${DNS:-8.8.8.8}
-    # image: ghcr.io/zworkb/google-wallet-callback:latest
+    image: ghcr.io/edutap-eu/edutap.google_wallet_callback_handler:latest
     build:
       context: .
       args:

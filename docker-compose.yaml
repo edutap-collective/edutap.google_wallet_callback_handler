@@ -4,9 +4,10 @@ services:
 
   # FastAPI server handling the callback
   callback-handler:
+    container_name: callback-handler
     dns:
       ${DNS:-8.8.8.8}
-    image: ghcr.io/zworkb/google-wallet-callback:latest
+    # image: ghcr.io/zworkb/google-wallet-callback:latest
     build:
       context: .
       args:
@@ -23,20 +24,33 @@ services:
   # The fastapi server pushes the callback data to kafka
   kafka:
     container_name: kafka
-    image: 'bitnami/kafka:latest'
+    image: 'docker.io/bitnami/kafka:latest'
     ports:
       - '9092:9092'
+    volumes:
+      - "./kafka_data:/bitnami"
     environment:
-      ALLOW_PLAINTEXT_LISTENER: "yes"
-      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://127.0.0.1:9092,INTERN://kafka:19094,EXTERNAL://127.0.0.1:9094"  # Kontaktadressen der Listener
-      KAFKA_CFG_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093,INTERN://:19094,EXTERNAL://:9094"                 # Gesamtmenge der Listener
-      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,INTERN:PLAINTEXT,EXTERNAL:PLAINTEXT" # pro Listener, das Auth-Verfahren
+      # KRaft
+      - KAFKA_CFG_NODE_ID=0
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
+      # Listeners
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,INTERN://:19094,EXTERNAL://:9094                 # Gesamtmenge der Listener
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9092,INTERN://kafka:19094,EXTERNAL://127.0.0.1:9094  # Kontaktadressen der Listener
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,INTERN:PLAINTEXT,EXTERNAL:PLAINTEXT # pro Listener, das Auth-Verfahren
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      # ALLOW_PLAINTEXT_LISTENER: "yes"
+      # KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://127.0.0.1:9092,INTERN://kafka:19094,EXTERNAL://127.0.0.1:9094"  # Kontaktadressen der Listener
+      # KAFKA_CFG_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093,INTERN://:19094,EXTERNAL://:9094"                 # Gesamtmenge der Listener
+      # KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,INTERN:PLAINTEXT,EXTERNAL:PLAINTEXT" # pro Listener, das Auth-Verfahren
 
   kafka-ui:
     container_name: kafka-ui
     image: provectuslabs/kafka-ui:latest
-    # ports:
-      # - "${KAFKA_UI_PORT:-30300}:8080"
+    ports:
+      - "${KAFKA_UI_PORT:-30300}:8080"
     depends_on:
       - kafka
     environment:
@@ -53,12 +67,14 @@ services:
   # create the topic for the google callbacks
   create-topic-google-wallet-notification:
     image: bitnami/kafka:latest
+    container_name: "script-create-topic-google-wallet-notification"
     command: "kafka-topics.sh --create --topic google-wallet-notification --if-not-exists --bootstrap-server kafka:19094"
     depends_on:
       - kafka
 
   create-topic-google-wallet-notification-decrypted:
     image: bitnami/kafka:latest
+    container_name: "script-create-topic-google-wallet-notification-decrypted"
     command: "kafka-topics.sh --create --topic google-wallet-notification-decrypted --if-not-exists --bootstrap-server kafka:19094"
     depends_on:
       - kafka

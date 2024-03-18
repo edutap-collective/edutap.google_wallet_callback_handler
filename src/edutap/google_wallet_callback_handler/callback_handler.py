@@ -1,10 +1,12 @@
 from .model import CallbackMessage
 from .stream import process_messages
 from aiokafka import AIOKafkaProducer
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi import Request
 from fastapi.logger import logger
+from importlib.metadata import version
 from typing import Any
 
 import asyncio
@@ -14,20 +16,27 @@ import time
 
 logger.setLevel("DEBUG")
 
+__version__ = version("edutap.google_wallet_callback_handler")
+
 kafka_producer: AIOKafkaProducer | None = None
 
-app = FastAPI(version="0.1.1")
+app = FastAPI(
+    # title="Google Wallet Callback Handler",
+    # description=""" """,
+    # summary=""" """,
+    version=__version__,
+)
 
 NOTIFICATION_TOPIC = "google-wallet-notification"
 TARGET_TOPIC = "google-wallet-notification-decrypted"
 
-# BROKER_URL = os.environ.get("BROKER_URL", "kafka:19094")
-BROKER_URL = os.environ["BROKER_URL"]
+BROKER_URL = os.environ.get("BROKER_URL", "kafka:19094")
 logger.info(f"BROKER_URL: {BROKER_URL}")
 
 
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initializing
     print("BROKER_URL: ", BROKER_URL)
     global kafka_producer
     retries = 50
@@ -48,6 +57,9 @@ async def startup():
     print("creating stream processor for google wallet notifications")
     asyncio.create_task(process_messages(BROKER_URL, NOTIFICATION_TOPIC, TARGET_TOPIC))
 
+    yield
+    # Shutdown
+
 
 @app.get("/")
 async def read_root():
@@ -56,9 +68,6 @@ async def read_root():
 
 @app.get("/info")
 async def info():
-    from importlib.metadata import version
-
-    __version__ = version("edutap.google_wallet_callback_handler")
     return {
         "package": "edutap.google_wallet_callback_handler",
         "version": __version__,
@@ -79,7 +88,7 @@ async def handle_callback(request: Request, callback_message: CallbackMessage):
         # callback_message.repair()
         msg_text = callback_message.json().encode("utf-8")
         print(f"sending message to {NOTIFICATION_TOPIC}, text: {msg_text}")
-        await kafka_producer.send_and_wait(NOTIFICATION_TOPIC, msg_text)
+        await app.kafka_producer.send_and_wait(NOTIFICATION_TOPIC, msg_text)
         return {"status": "success"}
     except Exception as e:
         print("Error handling callback: ", e)

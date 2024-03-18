@@ -17,7 +17,7 @@ RUN echo "$HTTP_PORT"
 WORKDIR /app
 
 COPY src /app/src
-COPY setup.py /app
+COPY pyproject.toml /app
 
 # RUN python3 -m venv venv
 RUN pip install --no-cache-dir -e /app

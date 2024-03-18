@@ -51,6 +51,9 @@ develop = [
     "ipython",
 ]
 
+[project.scripts]
+google-wallet-callback-handler = "edutap.google_wallet_callback_handler.callback_handler:app"
+
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"

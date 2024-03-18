@@ -61,6 +61,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
 
 
+
 @app.get("/")
 async def read_root():
     return {"Hello": "World!"}
@@ -88,7 +89,7 @@ async def handle_callback(request: Request, callback_message: CallbackMessage):
         # callback_message.repair()
         msg_text = callback_message.json().encode("utf-8")
         print(f"sending message to {NOTIFICATION_TOPIC}, text: {msg_text}")
-        await app.kafka_producer.send_and_wait(NOTIFICATION_TOPIC, msg_text)
+        await kafka_producer.send_and_wait(NOTIFICATION_TOPIC, msg_text)
         return {"status": "success"}
     except Exception as e:
         print("Error handling callback: ", e)

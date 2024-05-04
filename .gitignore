@@ -47,3 +47,5 @@ var/
 
 /.env
 /*.json
+/kafka_data/
+/letsencrypt/

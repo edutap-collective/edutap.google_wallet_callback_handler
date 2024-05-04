@@ -24,7 +24,6 @@ classifiers = [
 ]
 dependencies = [
     "pydantic[email,dotenv]>=2.0",
-    "python-dotenv",
     "fastapi",
     "uvicorn[standard]",
     "requests",
@@ -52,7 +51,7 @@ develop = [
 ]
 
 [project.scripts]
-google-wallet-callback-handler = "edutap.google_wallet_callback_handler.main:main"
+google-wallet-callback-handler = "edutap.google_wallet_callback_handler.standalone:main"
 
 [build-system]
 requires = ["setuptools>=61"]

@@ -1,7 +1,7 @@
 from .config import GoogleWalletCallbackHandlerSettings
 from .fastapi_kafka_callback_handler import kafka_producer
 from .fastapi_kafka_callback_handler import setup
-from .stream import process_messages
+from .kafka_stream import process_messages
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi import Request
@@ -18,13 +18,6 @@ __version__ = version("edutap.google_wallet_callback_handler")
 
 
 settings = GoogleWalletCallbackHandlerSettings()
-
-app = FastAPI(
-    # title="Google Wallet Callback Handler",
-    # description=""" """,
-    # summary=""" """,
-    version=__version__,
-)
 
 
 @asynccontextmanager
@@ -44,6 +37,15 @@ async def lifespan(app: FastAPI):
     # Shutdown
 
 
+app = FastAPI(
+    title="eduTAP Google Wallet Callback Handler",
+    description="A fastAPI based Callback-Handler for Google Wallet",
+    # summary=""" """,
+    version=__version__,
+    lifespan=lifespan,
+)
+
+
 @app.get("/")
 async def info():
     return {
@@ -54,6 +56,11 @@ async def info():
     }
 
 
+@app.get("/openapi.json")
+async def openapi():
+    return app.openapi()
+
+
 @app.post("/test/message")
 async def test_message(request: Request, msg: str):
     await kafka_producer.send_and_wait("test", msg.encode("utf-8"))
@@ -61,7 +68,7 @@ async def test_message(request: Request, msg: str):
 
 def main():
     uvicorn.run(
-        "edutap.google_wallet_callback_handler.callback_handler:app",
+        "edutap.google_wallet_callback_handler.standalone:app",
         host="127.0.0.1",
         port=9000,
         log_level="debug",

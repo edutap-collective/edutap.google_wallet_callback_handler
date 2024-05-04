@@ -13,8 +13,10 @@ def decrypt_message(message: str) -> str:
     this library has to be extendend for using the "ECv2SigningOnly" protocol
     """
     try:
-        callback_message: CallbackMessage = CallbackMessage.parse_raw(message)
-        signedMessage = SignedMessage.parse_raw(callback_message.signedMessage)
+        callback_message: CallbackMessage = CallbackMessage.model_validate_json(message)
+        signedMessage = SignedMessage.model_validate_json(
+            callback_message.signedMessage
+        )
         print(f"------------dummy decrypted message: {signedMessage} ")
         decrypted_message = signedMessage
         return decrypted_message.json(indent=4)

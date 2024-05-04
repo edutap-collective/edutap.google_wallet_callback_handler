@@ -1,6 +1,6 @@
+from pydantic import HttpUrl
 from pydantic_settings import BaseSettings
 from pydantic_settings import SettingsConfigDict
-from pydantic import HttpUrl
 
 
 class GoogleWalletCallbackHandlerSettings(BaseSettings):
@@ -13,12 +13,12 @@ class GoogleWalletCallbackHandlerSettings(BaseSettings):
         # extra="allow",
     )
 
-    api_prefix: str | None = "/google_callback_api/v1/"
+    api_prefix: str = "/google_callback_api/v1"
 
     url: HttpUrl | None = None
     update_url: HttpUrl | None = None
 
-    notification_topic: str | None = "google-wallet-callback-notifications"
-    target_topic: str | None = "google-wallet-callback-notifications-decrypted"
+    notification_topic: str = "google-wallet-callback-notifications"
+    target_topic: str = "google-wallet-callback-notifications-decrypted"
 
-    broker_url: str | None = "kafka:19094"
+    broker_url: str = "kafka:19094"

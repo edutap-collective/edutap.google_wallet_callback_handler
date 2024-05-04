@@ -1,7 +1,7 @@
 [project]
 name = "edutap.google_wallet_callback_handler"
 version = "1.0.0.dev0"
-description = "A Google Wallet Callback-Handler Implementation based on FastAPI and Apache Kafka."
+description = "A Google Wallet Callback-Handler Implementation."
 keywords = ["wallet", "google", "callback-handler", ]
 readme = "README.md"
 authors = [
@@ -24,10 +24,8 @@ classifiers = [
 ]
 dependencies = [
     "pydantic[email,dotenv]>=2.0",
-    "fastapi",
-    "uvicorn[standard]",
+    "pydantic-settings",
     "requests",
-    "aiokafka",
   ]
 
 [project.urls]
@@ -36,6 +34,13 @@ Issues = "https://github.com/edutap-eu/edutap.google_wallet_callback_handler/iss
 Documentation = "https://docs.edutap.eu/packages/edutap_google_wallet_callback_handler/index.html"
 
 [project.optional-dependencies]
+fastapi = [
+    "fastapi",
+    "uvicorn[standard]",
+]
+kafka = [
+    "aiokafka",
+]
 test = [
     "pytest",
     "requests-mock",

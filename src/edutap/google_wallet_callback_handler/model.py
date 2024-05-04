@@ -7,7 +7,14 @@ class SignedMessage(BaseModel):
     objectId: str
     expTimeMillis: int
     eventType: Literal[
-        "DELETE", "SAVE", "delete", "save", "UPDATE", "update", "DEL", "del",
+        "DELETE",
+        "SAVE",
+        "delete",
+        "save",
+        "UPDATE",
+        "update",
+        "DEL",
+        "del",
     ]
     nonce: str
 

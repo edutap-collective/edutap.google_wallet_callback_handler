@@ -14,8 +14,9 @@ entryPoints:
 certificatesResolvers:
   le:
     acme:
-      # das is anscheinend wichtig, damit der acme callback von aussen hinhaut
-      # wichtig ist, dass die angegebene domain mit port 80 auf diesen host zeigt, wenn man hinter einer nat ist
+      # It seems important, that the ACME callback is reachable from outside
+      # Therefore the specified domain MUST point to this host on port 80,
+      # even in a NAT environment
       httpchallenge:
         entryPoint: http
 
@@ -23,7 +24,7 @@ certificatesResolvers:
       storage: "/letsencrypt/acme.json"
 
 # uncomment if you want dashboard
-api:
-  dashboard: true
-  insecure: true
+# api:
+#   dashboard: true
+#   insecure: true
 

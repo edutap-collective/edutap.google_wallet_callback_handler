@@ -40,7 +40,18 @@ the appliance contains the following services:
 
 after startup, check:
 
-- {DOMAIN}/{HTTPS_PORT}/docs shall show you the swagger interface
-- {DOMAIN}/{HTTPS_PORT}/kafka-ui shows you the kafka user interface
+- `https://{DOMAIN}/{HTTPS_PORT}/docs` shall show you the swagger interface
+- `https://{DOMAIN}/{HTTPS_PORT}/kafka-ui` shows you the kafka user interface
+- `https://{DOMAIN}/{HTTPS_PORT}/callback` contains the callback url
 
 TODO: protect the kafka user interface
+
+### troubleshooting
+
+- kafka complains about 'permission denied'
+
+make sure that ./kafka_data has the necessary permissions
+
+- permission complaints concerning the `./letsencrypt` dir
+
+fiddle around with the permissions of this directory ;)

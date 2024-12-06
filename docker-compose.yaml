@@ -13,11 +13,11 @@ services:
       args:
         - HTTP_PORT=${HTTP_PORT:-80}
         - BROKER_URL=${BROKER_URL:-kafka:19094}
-    develop:
-      watch:
-      - path: .
-        action: sync
-        target: /app
+    # develop:
+    #   watch:
+    #   - path: .
+    #     action: sync
+    #     target: /app
     ports:
       - "${HTTP_PORT:-8083}:${HTTP_PORT:-80}"
     labels:

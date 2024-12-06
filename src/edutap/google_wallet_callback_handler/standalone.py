@@ -1,5 +1,5 @@
 from .config import GoogleWalletCallbackHandlerSettings
-from .fastapi_kafka_callback_handler import kafka_producer
+from .fastapi_kafka_callback_handler import kafka_producer, get_kafka_producer
 from .fastapi_kafka_callback_handler import setup
 from .kafka_stream import process_messages
 from contextlib import asynccontextmanager
@@ -63,7 +63,7 @@ async def openapi():
 
 @app.post("/test/message")
 async def test_message(request: Request, msg: str):
-    await kafka_producer.send_and_wait("test", msg.encode("utf-8"))
+    await get_kafka_producer().send_and_wait("test", msg.encode("utf-8"))
 
 
 def main():

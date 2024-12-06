@@ -15,24 +15,39 @@ settings = GoogleWalletCallbackHandlerSettings()
 router = APIRouter(prefix=settings.api_prefix)
 kafka_producer: AIOKafkaProducer = None
 
+def get_kafka_producer():
+    return kafka_producer
+
+
+def set_kafka_producer(kp):
+    global kafka_producer
+    kafka_producer = kp
+
 
 async def setup(app: FastAPI):
-    global kafka_producer
-    retries = 50
+    """
+    try to start the kafka producer until it reaches kafka
+    """
+    # global kafka_producer
+    retries = 500
     for i in range(retries):
         try:
             kafka_producer = AIOKafkaProducer(bootstrap_servers=settings.broker_url)
+            logger.warn(f"trying to start produer...")
+
             await kafka_producer.start()
+            logger.warn(f"kafka producer started: {get_kafka_producer()}")
+            set_kafka_producer(kafka_producer)
             break
         except Exception as e:
             logger.error(e)
             logger.warn(
-                f"Waiting for kafka at {settings.broker_url} to start, retry in 1 second"
+                f"Waiting for kafka at {settings.broker_url} to start, retry in 1 second..."
             )
             time.sleep(1)
-    logger.info("Kafka Producer started")
+    logger.warn(f"Kafka Producer started:{get_kafka_producer()}")
 
-    logger.info("Register router")
+    logger.warn("Register router")
     app.include_router(router)
 
 
@@ -45,14 +60,14 @@ async def handle_callback(request: Request, callback_message: CallbackMessage):
         logger.debug(
             "sending message to %s, text: %s", settings.notification_topic, msg_text
         )
-        await kafka_producer.send_and_wait(settings.notification_topic, msg_text)
+        await get_kafka_producer().send_and_wait(settings.notification_topic, msg_text)
         return {"status": "success"}
     except Exception as e:
         print("Error handling callback: ", e)
-        await kafka_producer.send_and_wait(
+        await get_kafka_producer().send_and_wait(
             settings.notification_topic, str(e).encode("utf-8")
         )
-        await kafka_producer.send_and_wait(
+        await get_kafka_producer().send_and_wait(
             settings.notification_topic,
             callback_message.model_dump_json().encode("utf-8"),
         )

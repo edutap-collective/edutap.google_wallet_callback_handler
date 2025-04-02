@@ -41,9 +41,9 @@ services:
       - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
       # Listeners
       - ALLOW_PLAINTEXT_LISTENER=yes
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,INTERN://:19094,EXTERNAL://:9094                 # Gesamtmenge der Listener
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9092,INTERN://kafka:19094,EXTERNAL://127.0.0.1:9094  # Kontaktadressen der Listener
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,INTERN:PLAINTEXT,EXTERNAL:PLAINTEXT # pro Listener, das Auth-Verfahren
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094,INTERN://:9095                   # Gesamtmenge der Listener
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://127.0.0.1:9094,INTERN://kafka:9095    # Kontaktadressen der Listener
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,INTERN:PLAINTEXT  # pro Listener, das Auth-Verfahren
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
 
@@ -55,7 +55,7 @@ services:
     depends_on:
       - kafka
     environment:
-      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_NAME: edutap.google_wallet_callback_handler Development
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19094
       DYNAMIC_CONFIG_ENABLED: 'true'         # not necessary, added for tests
       SERVER_SERVLET_CONTEXT_PATH: /kafka-ui # necessary to set the path to /kafka-ui via traefik, otherwise 404
@@ -66,17 +66,16 @@ services:
       - "traefik.http.routers.kafka-ui.tls.certresolver=le"
 
   # create the topic for the google callbacks
-  create-topic-google-wallet-notification:
+  create-topics:
     image: bitnami/kafka:latest
-    container_name: "script-create-topic-google-wallet-notification"
-    command: "kafka-topics.sh --create --topic google-wallet-notification --if-not-exists --bootstrap-server kafka:19094"
-    depends_on:
-      - kafka
-
-  create-topic-google-wallet-notification-decrypted:
-    image: bitnami/kafka:latest
-    container_name: "script-create-topic-google-wallet-notification-decrypted"
-    command: "kafka-topics.sh --create --topic google-wallet-notification-decrypted --if-not-exists --bootstrap-server kafka:19094"
+    container_name: create-topics
+    command:
+      - /bin/sh
+      - -c
+      - |
+        kafka-topics.sh --create --topic edutap.google-wallet-notification --partitions 1 --if-not-exists --bootstrap-server argo-kafka:9092
+        kafka-topics.sh --create --topic edutap.google-wallet-notification-decrypted --partitions 1 --if-not-exists --bootstrap-server argo-kafka:9092
+        kafka-topics.sh --create --topic edutap.google_callback --partitions 1 --if-not-exists --bootstrap-server argo-kafka:9092
     depends_on:
       - kafka
 

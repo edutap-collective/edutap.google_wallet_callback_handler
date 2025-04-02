@@ -1,12 +1,12 @@
 [project]
 name = "edutap.google_wallet_callback_handler"
-version = "1.0.0.dev0"
+version = "2.0.0.dev0"
 description = "A Google Wallet Callback-Handler Implementation."
 keywords = ["wallet", "google", "callback-handler", ]
 readme = "README.md"
 authors = [
-    {name = "Philipp Auersperg-Castell", email = "phil@bluedynamics.com"},
     {name = "Alexander Loechel", email = "Alexander.Loechel@lmu.de"},
+    {name = "Philipp Auersperg-Castell", email = "phil@bluedynamics.com"},
     {name = "Jens Klein", email = "jk@kleinundpartner.at"},
 ]
 requires-python = ">=3.10"
@@ -15,6 +15,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: European Union Public Licence 1.2 (EUPL 1.2)",
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -23,9 +24,13 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    "edutap-wallet-google[callback]>=1.0.0b1",
+    "fastapi>=0.115.7",
+    "uvicorn[standard]>=0.34.0",
     "pydantic[email,dotenv]>=2.0",
     "pydantic-settings",
-    "requests",
+    "httpx",
+    "structlog",
   ]
 
 [project.urls]
@@ -34,29 +39,23 @@ Issues = "https://github.com/edutap-eu/edutap.google_wallet_callback_handler/iss
 Documentation = "https://docs.edutap.eu/packages/edutap_google_wallet_callback_handler/index.html"
 
 [project.optional-dependencies]
-fastapi = [
-    "fastapi",
-    "uvicorn[standard]",
-]
 kafka = [
     "aiokafka",
 ]
 test = [
     "pytest",
-    "requests-mock",
 ]
 typecheck  = [
     "mypy",
-    "types-requests",
     "pytest-stub",
 ]
-develop = [
+dev = [
     "pdbpp",
     "ipython",
 ]
 
 [project.scripts]
-google-wallet-callback-handler = "edutap.google_wallet_callback_handler.standalone:main"
+google-wallet-callback-handler = "edutap.google_wallet_callback_handler.main:main"
 
 [build-system]
 requires = ["setuptools>=61"]
@@ -72,7 +71,10 @@ testpaths = [
 ]
 
 [tool.isort]
-profile = "plone"
+profile = "black"
+force_alphabetical_sort = true
+force_single_line = true
+lines_after_imports = 2
 
 [tool.black]
 target-version = ["py310"]

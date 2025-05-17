@@ -18,3 +18,5 @@ class Settings(BaseSettings):
     ENVIRONMENT: Literal["production", "development", "testing"] = "development"
 
     GOOGLE_CALLBACK_URL: HttpUrl = "https://localhost/wallet/google/v1/callback"
+
+    SENTRY_DSN: str | None = None

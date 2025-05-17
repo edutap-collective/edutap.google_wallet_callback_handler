@@ -9,7 +9,7 @@ authors = [
     {name = "Philipp Auersperg-Castell", email = "phil@bluedynamics.com"},
     {name = "Jens Klein", email = "jk@kleinundpartner.at"},
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.14"
 license = { text = "EUPL 1.2" }
 classifiers = [
     "Programming Language :: Python :: 3.10",
@@ -25,6 +25,7 @@ classifiers = [
 ]
 dependencies = [
     "edutap-wallet-google[callback]>=1.0.0b1",
+    "sentry-sdk[fastapi]",
     "fastapi>=0.115.7",
     "uvicorn[standard]>=0.34.0",
     "pydantic[email,dotenv]>=2.0",

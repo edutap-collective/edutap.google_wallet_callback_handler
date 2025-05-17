@@ -11,15 +11,15 @@ therefore we use traefik with letsencrypt
 provide an .env file with the contents in the root of this directory
 
 ```env
-DNS=192.168.66.1
-DOMAIN=edutap.bluedynamics.net
-HTTPS_PORT=8443
+DNS=192.168.8.1
+DOMAIN=demo.edutap.eu
+HTTPS_PORT=443
 ```
 
-make sure that 
+make sure that
 
 - the domain points to your server
-- your server is reachable publically on port 80 for letsencrypt
+- your server is reachable publicly on port 80 for letsencrypt
 - your HTTPS_PORT is free
 
 then start the appliance:
@@ -33,7 +33,7 @@ the appliance contains the following services:
 - callback-handler
     reachable under /callback
 - kafka
-    reachable 
+    reachable
 - kafka-ui
 - traefik
 

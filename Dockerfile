@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 FROM python:3.13
 
-ARG HTTP_PORT=8085
+ARG HTTP_PORT=8086
 ENV HTTP_PORT=${HTTP_PORT}
 
 RUN echo "$HTTP_PORT"

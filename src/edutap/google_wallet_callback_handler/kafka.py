@@ -1,17 +1,19 @@
-from edutap.google_wallet_callback_handler.log import logger
-from edutap.wallet_google.models.handlers import SignedMessage
 from aiokafka import AIOKafkaProducer
 from aiokafka.errors import KafkaConnectionError
 from aiokafka.helpers import create_ssl_context
+from edutap.google_wallet_callback_handler.log import logger
+from edutap.wallet_google.models.handlers import SignedMessage
 from pydantic_settings import BaseSettings
 from pydantic_settings import SettingsConfigDict
 from typing import Literal
 
+import atexit
 import pathlib
 import threading
-import atexit
+
 
 _THREADLOCAL = threading.local()
+
 
 class KafkaSettings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -36,7 +38,9 @@ class KafkaSettings(BaseSettings):
     # Kafka Topics
     GOOGLE_CALLBACK_TOPIC: str = "edutap.google_callback"
 
+
 settings = KafkaSettings()
+
 
 class KafkaSessionManager:
     """ """
@@ -48,9 +52,15 @@ class KafkaSessionManager:
     async def _establish_kafka_producer(self):
         settings = KafkaSettings()
         try:
-            logger.info(f"Create Kafka Producer and try to connect to: {settings.BOOTSTRAP_SERVERS}")
+            logger.info(
+                f"Create Kafka Producer and try to connect to: {settings.BOOTSTRAP_SERVERS}"
+            )
             producer: AIOKafkaProducer = None
-            if settings.CA_FILE is not None and settings.CERT_FILE is not None and settings.KEY_FILE is not None:
+            if (
+                settings.CA_FILE is not None
+                and settings.CERT_FILE is not None
+                and settings.KEY_FILE is not None
+            ):
                 ssl_context = create_ssl_context(
                     cafile=settings.CA_FILE,
                     certfile=settings.CERT_FILE,
@@ -63,7 +73,9 @@ class KafkaSessionManager:
                     ssl_context=ssl_context,
                 )
             else:
-                producer = AIOKafkaProducer(bootstrap_servers=settings.BOOTSTRAP_SERVERS)
+                producer = AIOKafkaProducer(
+                    bootstrap_servers=settings.BOOTSTRAP_SERVERS
+                )
             await producer.start()
             logger.info(
                 "Kafka Producer created and connected to: %s",

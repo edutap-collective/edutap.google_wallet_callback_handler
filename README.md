@@ -1,7 +1,15 @@
 # eduTAP.google_callback_handler - A Callback-Handler for Google Wallet
 
 This eduTAP Package provides you with a reusable callback handler that conforms with the API specification from Google Wallet.
+see https://developers.google.com/wallet/generic/use-cases/use-callbacks-for-saves-and-deletions
 
+This docker compose contains:
+
+- a google pass callback handler
+    it just puts the request as is into kafka
+- kafka instance storing incoming callback requests from google
+- kafka-ui for viewing what happens in kafka
+- traefik ingress server that handles https and automatic letsencrypt stuff
 
 ## Install Standalone Version
 

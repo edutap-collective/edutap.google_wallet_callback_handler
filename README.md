@@ -8,7 +8,7 @@ This eduTAP Package provides you with a reusable callback handler that conforms 
 **Attention** Google expects a public https service at the location defined in the pass class
 therefore we use traefik with letsencrypt
 
-provide an .env file with the contents in the root of this directory
+provide an .env file with the contents in the root of this directory, for example like so:
 
 ```env
 DNS=192.168.8.1
@@ -42,7 +42,7 @@ after startup, check:
 
 - `https://{DOMAIN}/{HTTPS_PORT}/docs` shall show you the swagger interface
 - `https://{DOMAIN}/{HTTPS_PORT}/kafka-ui` shows you the kafka user interface
-- `https://{DOMAIN}/{HTTPS_PORT}/callback` contains the callback url
+- `https://{DOMAIN}/{HTTPS_PORT}/v1/callback` contains the callback url
 
 TODO: protect the kafka user interface
 

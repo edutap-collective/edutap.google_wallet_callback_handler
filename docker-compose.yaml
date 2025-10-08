@@ -29,26 +29,31 @@ services:
   # The fastapi server pushes the callback data to kafka
   kafka:
     container_name: kafka
-    image: 'docker.io/bitnami/kafka:latest'
+    image: 'apache/kafka:latest'
+    hostname: kafka
     ports:
       - '9092:9092'
+      - '9093:9093'
     volumes:
-      - "./kafka_data:/bitnami"
+      - "kafka_data:/var/lib/kafka/data"
     environment:
-      # KRaft
-      - KAFKA_CFG_NODE_ID=0
-      - KAFKA_CFG_PROCESS_ROLES=controller,broker
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
-      # Listeners
-      - ALLOW_PLAINTEXT_LISTENER=yes
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094,INTERN://:9095                   # Gesamtmenge der Listener
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://127.0.0.1:9094,INTERN://kafka:9095    # Kontaktadressen der Listener
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,INTERN:PLAINTEXT  # pro Listener, das Auth-Verfahren
-      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      # KRaft Configuration
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094,INTERN://0.0.0.0:9095'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092,EXTERNAL://127.0.0.1:9094,INTERN://kafka:9095'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,INTERN:PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_DIRS: '/var/lib/kafka/data'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
 
   kafka-ui:
-    container_name: kafka-ui
+    container_name: kafka-ui-google-wallet
     image: provectuslabs/kafka-ui:latest
     ports:
       - "${KAFKA_UI_PORT:-30300}:8080"
@@ -56,28 +61,31 @@ services:
       - kafka
     environment:
       KAFKA_CLUSTERS_0_NAME: edutap.google_wallet_callback_handler Development
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19094
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
       DYNAMIC_CONFIG_ENABLED: 'true'         # not necessary, added for tests
       SERVER_SERVLET_CONTEXT_PATH: /kafka-ui # necessary to set the path to /kafka-ui via traefik, otherwise 404
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.kafka-ui.rule=Host(`${DOMAIN}`) && PathPrefix(`/kafka-ui`)"
-      - "traefik.http.routers.kafka-ui.entrypoints=https,http"
-      - "traefik.http.routers.kafka-ui.tls.certresolver=le"
+      - "traefik.http.routers.kafka-ui-google-wallet.rule=Host(`${DOMAIN}`) && PathPrefix(`/kafka-ui`)"
+      - "traefik.http.routers.kafka-ui-google-wallet.entrypoints=https,http"
+      - "traefik.http.routers.kafka-ui-google-wallet.tls.certresolver=le"
+      - "traefik.http.services.kafka-ui-google-wallet.loadbalancer.server.port=8080"
 
   # create the topic for the google callbacks
   create-topics:
-    image: bitnami/kafka:latest
+    image: apache/kafka:latest
     container_name: create-topics
     command:
       - /bin/sh
       - -c
       - |
-        kafka-topics.sh --create --topic edutap.google-wallet-notification --partitions 1 --if-not-exists --bootstrap-server argo-kafka:9092
-        kafka-topics.sh --create --topic edutap.google-wallet-notification-decrypted --partitions 1 --if-not-exists --bootstrap-server argo-kafka:9092
-        kafka-topics.sh --create --topic edutap.google_callback --partitions 1 --if-not-exists --bootstrap-server argo-kafka:9092
+        sleep 15
+        /opt/kafka/bin/kafka-topics.sh --create --topic edutap.google-wallet-notification --partitions 1 --replication-factor 1 --if-not-exists --bootstrap-server kafka:9092
+        /opt/kafka/bin/kafka-topics.sh --create --topic edutap.google-wallet-notification-decrypted --partitions 1 --replication-factor 1 --if-not-exists --bootstrap-server kafka:9092
+        /opt/kafka/bin/kafka-topics.sh --create --topic edutap.google_callback --partitions 1 --replication-factor 1 --if-not-exists --bootstrap-server kafka:9092
     depends_on:
-      - kafka
+      kafka:
+        condition: service_started
 
   traefik:
     image: "traefik:latest"
@@ -101,3 +109,7 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "./letsencrypt/${DOMAIN}:/letsencrypt"
       - "./traefik.yaml:/traefik.yaml"
+
+volumes:
+  kafka_data:
+    driver: local

@@ -17,7 +17,7 @@ import uvicorn
 import uvloop
 
 
-__version__ = version("edutap.google_wallet_callback_handler")
+__version__ = version("edutap.wallet_google_callback_handler")
 settings = Settings()
 SERVICE_NAME = "eduTAP Google Wallet Callback Service (edutap.google_callback_handler)"
 

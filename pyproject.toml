@@ -37,7 +37,7 @@ dependencies = [
 [project.urls]
 Source = "https://github.com/edutap-collective/edutap.wallet_google_callback_handler"
 Issues = "https://github.com/edutap-collective/edutap.wallet_google_callback_handler/issues"
-Documentation = "https://docs.edutap.eu/packages/edutap_google_wallet_callback_handler/index.html"
+Documentation = "https://docs.edutap.eu/packages/edutap_wallet_google_callback_handler/index.html"
 
 [project.optional-dependencies]
 kafka = [

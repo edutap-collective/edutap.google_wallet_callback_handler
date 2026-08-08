@@ -1,6 +1,5 @@
 from aiokafka import AIOKafkaProducer
 from contextlib import asynccontextmanager
-from edutap.wallet_google_callback_handler.env_guard import check_retired_env_vars
 from edutap.wallet_google_callback_handler.kafka import kafka_session_manager
 from edutap.wallet_google_callback_handler.log import logger
 from edutap.wallet_google_callback_handler.settings import Settings
@@ -13,17 +12,12 @@ from starlette.status import HTTP_200_OK
 from starlette.status import HTTP_503_SERVICE_UNAVAILABLE
 
 import asyncio
-import os
 import sentry_sdk
 import uvicorn
 import uvloop
 
 
 __version__ = version("edutap.wallet_google_callback_handler")
-
-# Before the settings are read: every field has a default, so a deployment still
-# exporting the retired EDUTAP_* names would start with development defaults.
-check_retired_env_vars(os.environ)
 
 settings = Settings()
 SERVICE_NAME = "eduTAP Google Wallet Callback Service (edutap.wallet_google_callback_handler)"

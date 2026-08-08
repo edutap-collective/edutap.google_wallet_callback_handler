@@ -45,6 +45,11 @@ kafka = [
 ]
 test = [
     "pytest",
+    "pytest-asyncio",
+    # Not merely the optional runtime extra: kafka.py imports aiokafka at module
+    # level, so every test that touches this package needs it present -- even the
+    # ones that never reach a broker.
+    "aiokafka",
 ]
 typecheck  = [
     "mypy",
@@ -66,6 +71,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 minversion = "6.0"
 testpaths = [
     "tests",

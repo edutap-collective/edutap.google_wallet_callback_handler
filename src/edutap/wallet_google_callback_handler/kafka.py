@@ -118,11 +118,16 @@ class KafkaCallbackHandler:
             await producer.send(
                 topic=settings.GOOGLE_CALLBACK_TOPIC,
                 key=object_id.encode("utf-8"),
+                # SignedMessage mirrors Google's wire format and therefore uses
+                # camelCase field names, with no aliases and no populate_by_name.
+                # Passing snake_case raised a ValidationError for every single
+                # callback -- swallowed by the except below, so no event ever
+                # reached Kafka and Google still got a 200.
                 value=SignedMessage(
-                    class_id=class_id,
-                    object_id=object_id,
-                    event_type=event_type,
-                    exp_time_millis=exp_time_millis,
+                    classId=class_id,
+                    objectId=object_id,
+                    eventType=event_type,
+                    expTimeMillis=exp_time_millis,
                     count=count,
                     nonce=nonce,
                 )

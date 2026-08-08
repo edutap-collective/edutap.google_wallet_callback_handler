@@ -21,8 +21,14 @@ env:
 
 # A second push to the same branch supersedes the first; a half-finished build
 # of an outdated commit is never worth the runner minutes.
+#
+# The group is keyed on the workflow name rather than a literal, so renaming the
+# workflow also leaves its old group behind. That is not cosmetic: a run of the
+# previous workflow is wedged in `queued` on this repository and can neither be
+# cancelled (HTTP 500) nor deleted (HTTP 403), which blocked every later run for
+# `main`. A fresh group is the only way out that does not need GitHub support.
 concurrency:
-  group: publish-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

@@ -1,4 +1,4 @@
-from edutap.google_wallet_callback_handler.log import logger
+from edutap.wallet_google_callback_handler.log import logger
 
 
 class CallbackHandler:

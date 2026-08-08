@@ -7,7 +7,7 @@ services:
     container_name: callback-handler
     dns:
       ${DNS:-8.8.8.8}
-    # image: ghcr.io/edutap-eu/edutap.google_wallet_callback_handler:latest
+    # image: ghcr.io/edutap-eu/edutap.wallet_google_callback_handler:latest
     build:
       context: .
       args:
@@ -60,7 +60,7 @@ services:
     depends_on:
       - kafka
     environment:
-      KAFKA_CLUSTERS_0_NAME: edutap.google_wallet_callback_handler Development
+      KAFKA_CLUSTERS_0_NAME: edutap.wallet_google_callback_handler Development
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
       DYNAMIC_CONFIG_ENABLED: 'true'         # not necessary, added for tests
       SERVER_SERVLET_CONTEXT_PATH: /kafka-ui # necessary to set the path to /kafka-ui via traefik, otherwise 404

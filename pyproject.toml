@@ -56,7 +56,7 @@ dev = [
 ]
 
 [project.scripts]
-google-wallet-callback-handler = "edutap.google_wallet_callback_handler.main:main"
+google-wallet-callback-handler = "edutap.wallet_google_callback_handler.main:main"
 
 [build-system]
 requires = ["setuptools>=61"]

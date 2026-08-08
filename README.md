@@ -1,4 +1,4 @@
-# eduTAP.google_callback_handler - A Callback-Handler for Google Wallet
+# eduTAP.wallet_google_callback_handler - A Callback-Handler for Google Wallet
 
 This eduTAP Package provides you with a reusable callback handler that conforms with the API specification from Google Wallet.
 see https://developers.google.com/wallet/generic/use-cases/use-callbacks-for-saves-and-deletions

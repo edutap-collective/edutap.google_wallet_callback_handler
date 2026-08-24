@@ -34,15 +34,32 @@ async def lifespan(app: FastAPI):
     # Initializing
     logger.info("%s: Initializing Service Start", SERVICE_NAME)
 
+    # These five options each contradict the SDK's own default, and they are the
+    # same set that `sentry_options()` in `edutap.observability_settings`
+    # installs for the sibling services, where the reasoning behind each one is
+    # written out against a measurement. This package initializes the SDK itself
+    # rather than going through that one, so the set is repeated here. Keep the
+    # two in step.
+    #
+    # Until 2026-08-24 this call did the opposite: `send_default_pii=True` and
+    # local variables left on the SDK default, which is also True. It was
+    # harmless only while `SENTRY_DSN` was empty. This service receives Google's
+    # callbacks, so its request bodies carry the identifying datum, and with
+    # locals on a bearer token sits in the ASGI scope and reappears in dozens of
+    # frames of an event whose rendered `authorization` header reads
+    # `[Filtered]` -- Sentry's scrubber matches key names, it does not walk a
+    # list of byte tuples.
+    #
+    # `traces_sample_rate=0` because the receiving end is an error tracker and
+    # not an APM: at 1.0 every request became a transaction event.
     if settings.SENTRY_DSN:
         sentry_sdk.init(
             dsn=settings.SENTRY_DSN,
-            # Add data like request headers and IP for users,
-            # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
-            send_default_pii=True,
-            # Set traces_sample_rate to 1.0 to capture 100%
-            # of transactions for tracing.
-            traces_sample_rate=1.0,
+            send_default_pii=False,
+            include_local_variables=False,
+            max_request_body_size="never",
+            max_breadcrumbs=0,
+            traces_sample_rate=0,
             debug=settings.ENVIRONMENT == "development",
             environment=settings.ENVIRONMENT,
         )

@@ -15,9 +15,13 @@ module attribute.
 from aiokafka import AIOKafkaProducer
 from aiokafka.errors import KafkaConnectionError
 from aiokafka.helpers import create_ssl_context
+from datetime import datetime
+from datetime import UTC
+from edutap.data_models import messaging
 from edutap.wallet_google.models.handlers import SignedMessage
 from edutap.wallet_google_callback_handler.log import logger
 from functools import lru_cache
+from importlib.metadata import version
 from pydantic_settings import BaseSettings
 from pydantic_settings import SettingsConfigDict
 from typing import Any
@@ -55,6 +59,14 @@ class KafkaSettings(BaseSettings):
 
     # Kafka topics
     GOOGLE_CALLBACK_TOPIC: str = "edutap.google_callback"
+
+
+#: What this service calls itself in the `edutap-producer` header.
+#:
+#: A claim, not an authentication -- what can be relied on is who the broker let
+#: write to the topic at all, which is the mTLS principal `edutap-google-cb-handler`.
+#: The name here follows the package, as it does in the sibling services.
+PRODUCER_NAME = "wallet_google_callback_handler"
 
 
 @lru_cache(maxsize=1)
@@ -200,6 +212,45 @@ class KafkaCallbackHandler:
             return self._session_manager
         return kafka_session_manager
 
+    def _envelope(self, *, nonce: str) -> list[tuple[str, bytes]]:
+        """Build the header block `pass.state` requires.
+
+        Not decoration. The consumer reads this block before it looks at the body,
+        and a message that does not carry it is refused outright and parked in
+        `pass.state.dlq` -- not retried, and not reported anywhere the producer can
+        see. Until this method existed, every record this service wrote would have
+        gone that way.
+
+        The rules, per the topic schema:
+
+        * four mandatory headers -- producer, schema, event id, occurred-at;
+        * the schema must be exactly `pass-state/v1`;
+        * occurred-at must carry a time zone, because the consumer's watermark
+          compares it across services;
+        * and `pass.state` carries **no** `edutap-action`. The callback services
+          normalise at the edge, so the topic has one payload and nothing to
+          discriminate; Google's `eventType` therefore stays in the body.
+
+        `nonce` becomes the event id rather than a fresh uuid. It is Google's own
+        per-callback identifier, so a redelivery of the same callback carries the
+        same event id -- which is exactly what the consumer's idempotency check
+        wants. A new uuid each time would make every retry look like a new event.
+
+        `occurred_at` is when *we* accepted the callback. Google does not send a
+        time of occurrence -- `expTimeMillis` is an expiry, not an event time -- so
+        this is the earliest instant we can honestly name.
+        """
+        return messaging.build_headers(
+            producer=PRODUCER_NAME,
+            schema=messaging.SCHEMA_PASS_STATE,
+            event_id=nonce,
+            occurred_at=datetime.now(UTC),
+            # The header is documented as the image tag, which a process cannot
+            # read about itself. The distribution version identifies the code,
+            # which is what the field is for.
+            producer_version=version("edutap.wallet_google_callback_handler"),
+        )
+
     async def handle(
         self,
         class_id: str,
@@ -218,11 +269,23 @@ class KafkaCallbackHandler:
                 # The key decides the partition and therefore the order events
                 # are read in. Per pass, not per class.
                 key=object_id.encode("utf-8"),
+                headers=self._envelope(nonce=nonce),
                 # SignedMessage mirrors Google's wire format and therefore uses
                 # camelCase field names, with no aliases and no populate_by_name.
                 # Passing snake_case raised a ValidationError for every single
                 # callback -- swallowed by the except below, so no event ever
                 # reached Kafka and Google still got a 200.
+                #
+                # KNOWN DEVIATION, and a deliberate one. The header above claims
+                # `pass-state/v1`, and this body is not that -- it is Google's
+                # message as it arrived. The field list of `pass-state/v1` is not
+                # settled: the topic reference says so, and says it belongs to the
+                # package that provides the consumer rather than to this one.
+                # Today nothing reads it -- `lmu_edutap_worker` validates the
+                # header block, logs, and does not touch the body -- so publishing
+                # the raw message loses nothing and invents nothing. When the
+                # field list is decided, the normalisation belongs here, at the
+                # edge, which is where the topic schema puts it.
                 value=SignedMessage(
                     classId=class_id,
                     objectId=object_id,

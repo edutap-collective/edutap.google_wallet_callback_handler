@@ -14,6 +14,8 @@ the broker in `compose.test.yml`, runs it, and tears the broker down again.
 from aiokafka import AIOKafkaConsumer
 from conftest import CallbackEvent
 from conftest import EVENT
+from datetime import datetime
+from edutap.data_models import messaging
 from edutap.wallet_google_callback_handler.kafka import KafkaCallbackHandler
 from edutap.wallet_google_callback_handler.kafka import KafkaSessionManager
 from edutap.wallet_google_callback_handler.kafka import KafkaSettings
@@ -112,3 +114,40 @@ async def test_the_producer_survives_more_than_one_event(manager, topic):
         EVENT["object_id"].encode("utf-8"),
         f"{EVENT['object_id']}-2".encode(),
     ]
+
+
+async def test_the_header_block_survives_the_broker(manager, topic):
+    """A fake producer records whatever it is handed; a broker does not.
+
+    `aiokafka` serialises the header block on the way out and the consumer gets it
+    back as `(name, bytes)` pairs. Nothing in the unit tests would notice if that
+    round trip lost or mangled it, and the consumer reads this block before it
+    looks at the body -- so a record whose headers did not survive is a record that
+    goes to the dead letter topic.
+    """
+    await KafkaCallbackHandler(session_manager=manager).handle(**EVENT)
+
+    consumer = AIOKafkaConsumer(
+        topic,
+        bootstrap_servers=BOOTSTRAP_SERVERS,
+        auto_offset_reset="earliest",
+        group_id=None,
+    )
+    await consumer.start()
+    try:
+        with anyio.fail_after(30):
+            record = await consumer.getone()
+    finally:
+        await consumer.stop()
+
+    headers = record.headers
+    assert (
+        messaging.read_header(headers, messaging.HEADER_SCHEMA)
+        == messaging.SCHEMA_PASS_STATE
+    )
+    assert messaging.read_header(headers, messaging.HEADER_EVENT_ID) == EVENT["nonce"]
+    assert messaging.read_header(headers, messaging.HEADER_ACTION) is None
+    raw_time = messaging.read_header(headers, messaging.HEADER_OCCURRED_AT)
+    assert raw_time is not None
+    occurred_at = datetime.fromisoformat(raw_time)
+    assert occurred_at.tzinfo is not None

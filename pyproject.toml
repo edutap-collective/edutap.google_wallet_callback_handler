@@ -9,12 +9,17 @@ authors = [
     {name = "Philipp Auersperg-Castell", email = "phil@bluedynamics.com"},
     {name = "Jens Klein", email = "jk@kleinundpartner.at"},
 ]
-requires-python = ">=3.10"
+# 3.13, not 3.10, and the reason is `edutap.data_models` above: the package that
+# holds the Kafka message contract requires it, and every sibling that takes that
+# dependency -- `lmu_edutap_backend`, `edutap.db_definitions` -- already declares
+# the same floor. This is a deployed service with its own image, running 3.14,
+# and nothing in the tree imports it, so the window it declares costs nobody
+# anything. Writing our own copy of the header block to keep 3.10 would cost
+# something: six copies of a contract diverge, and the divergence is invisible
+# until a consumer quietly stops recognising a message.
+requires-python = ">=3.13"
 license = { text = "EUPL 1.2" }
 classifiers = [
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "License :: OSI Approved :: European Union Public Licence 1.2 (EUPL 1.2)",
@@ -26,6 +31,12 @@ classifiers = [
 ]
 dependencies = [
     "edutap-wallet-google[callback]>=1.0.0b1",
+    # The Kafka message contract: header names, logical topic names, schema
+    # identifiers and the one function that builds a header block. Six packages
+    # produce or consume on this bus, and six hand-written copies of the header
+    # block diverge -- invisibly, because a consumer that stops recognising a
+    # message parks it rather than failing.
+    "edutap.data_models>=0.3.0",
     "sentry-sdk[fastapi]",
     "fastapi>=0.115.7",
     "uvicorn[standard]>=0.34.0",
@@ -130,7 +141,7 @@ filterwarnings = ["error"]
 # service, not a library, and it is small enough that missing docstrings and
 # bandit findings are a handful rather than a project.
 [tool.ruff]
-target-version = "py310"
+target-version = "py313"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
@@ -172,7 +183,7 @@ no-sections = true
 order-by-type = false
 
 [tool.ty.environment]
-python-version = "3.10"
+python-version = "3.13"
 extra-paths = ["src", "tests"]
 
 [tool.ty.rules]
@@ -185,12 +196,9 @@ not-iterable = "warn"
 
 [tool.tox]
 min_version = "4.4.0"
-env_list = ["py310", "py311", "py312", "py313", "py314", "lint", "typecheck"]
+env_list = ["py313", "py314", "lint", "typecheck"]
 
 [tool.tox.gh.python]
-"3.10" = ["py310"]
-"3.11" = ["py311"]
-"3.12" = ["py312"]
 "3.13" = ["py313"]
 "3.14" = ["py314"]
 

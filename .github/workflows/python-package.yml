@@ -10,8 +10,12 @@ name: Python package
 on:
   push:
     branches: ["main"]
+  # No branch filter on pull requests. It used to say `branches: ["main"]`, which
+  # reads like "the pull requests that matter" and means "the pull requests whose
+  # *target* is main" -- so a stacked pull request, one that targets the branch
+  # below it in a chain, got no checks at all. GitHub reports that as "no checks
+  # reported", which is easy to read as "nothing to run".
   pull_request:
-    branches: ["main"]
 
 jobs:
   lint:

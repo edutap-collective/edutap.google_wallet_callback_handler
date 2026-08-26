@@ -1,13 +1,11 @@
 """Retired settings variables must stop the service, not be ignored."""
 
-import pytest
-
-from edutap.wallet_google_callback_handler.env_guard import (
-    CURRENT_PREFIX,
-    RETIRED_KEYS,
-    check_retired_env_vars,
-)
+from edutap.wallet_google_callback_handler.env_guard import check_retired_env_vars
+from edutap.wallet_google_callback_handler.env_guard import CURRENT_PREFIX
+from edutap.wallet_google_callback_handler.env_guard import RETIRED_KEYS
 from edutap.wallet_google_callback_handler.settings import Settings
+
+import pytest
 
 
 def test_clean_environment_passes():
@@ -70,4 +68,4 @@ def test_retired_keys_cover_every_settings_field():
     ``EDUTAP_`` plus the field name. If this fails, extend RETIRED_KEYS.
     """
     expected = {f"EDUTAP_{name}" for name in Settings.model_fields}
-    assert RETIRED_KEYS == expected
+    assert expected == RETIRED_KEYS

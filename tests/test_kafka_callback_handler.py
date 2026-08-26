@@ -7,13 +7,28 @@ topic the event lands in, what the record key is, and what happens when Kafka
 is unavailable.
 """
 
-import json
+from edutap.wallet_google_callback_handler.kafka import KafkaCallbackHandler
+from typing import TypedDict
 
+import json
 import pytest
 
-from edutap.wallet_google_callback_handler.kafka import KafkaCallbackHandler
 
-EVENT = {
+pytestmark = pytest.mark.anyio
+
+
+class CallbackEvent(TypedDict):
+    """The six arguments `CallbackHandler.handle` takes, as the protocol names them."""
+
+    class_id: str
+    object_id: str
+    event_type: str
+    exp_time_millis: int
+    count: int
+    nonce: str
+
+
+EVENT: CallbackEvent = {
     "class_id": "3388000000022125777.test-class",
     "object_id": "3388000000022125777.abc-123",
     "event_type": "save",
@@ -54,7 +69,6 @@ def producer(monkeypatch):
     return fake
 
 
-@pytest.mark.asyncio
 async def test_event_is_published_to_the_configured_topic(producer):
     await KafkaCallbackHandler().handle(**EVENT)
 
@@ -62,7 +76,6 @@ async def test_event_is_published_to_the_configured_topic(producer):
     assert producer.sent[0]["topic"] == "edutap.google_callback"
 
 
-@pytest.mark.asyncio
 async def test_record_key_is_the_object_id(producer):
     """The key decides partitioning, and therefore ordering.
 
@@ -75,7 +88,6 @@ async def test_record_key_is_the_object_id(producer):
     assert producer.sent[0]["key"] == EVENT["object_id"].encode("utf-8")
 
 
-@pytest.mark.asyncio
 async def test_payload_uses_googles_camel_case_field_names(producer):
     """SignedMessage mirrors Google's wire format -- camelCase, no aliases.
 
@@ -96,7 +108,6 @@ async def test_payload_uses_googles_camel_case_field_names(producer):
     }
 
 
-@pytest.mark.asyncio
 async def test_send_is_flushed(producer):
     """Without the flush the event may sit in the client buffer.
 
@@ -108,7 +119,6 @@ async def test_send_is_flushed(producer):
     assert producer.flushed == 1
 
 
-@pytest.mark.asyncio
 async def test_a_broker_failure_does_not_reach_the_caller(monkeypatch):
     """Documents current behaviour, which is a deliberate trade-off -- and a risk.
 

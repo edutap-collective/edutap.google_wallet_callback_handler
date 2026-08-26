@@ -1,11 +1,17 @@
+"""The Kafka side of the service: one producer, one topic, one handler.
+
+This is where an accepted callback becomes a record. `KafkaCallbackHandler`
+is what `pyproject.toml` registers as an `edutap.wallet_google.plugins` entry
+point, and it is the only thing in this package the library ever calls.
+"""
+
 from aiokafka import AIOKafkaProducer
 from aiokafka.errors import KafkaConnectionError
 from aiokafka.helpers import create_ssl_context
-from edutap.wallet_google_callback_handler.log import logger
 from edutap.wallet_google.models.handlers import SignedMessage
+from edutap.wallet_google_callback_handler.log import logger
 from pydantic_settings import BaseSettings
 from pydantic_settings import SettingsConfigDict
-from typing import Literal
 
 import atexit
 import pathlib
@@ -16,6 +22,13 @@ _THREADLOCAL = threading.local()
 
 
 class KafkaSettings(BaseSettings):
+    """Kafka connection and topic configuration, read from `EDUTAP_KAFKA_*`.
+
+    The prefix is deliberately not this package's own: the broker list and the
+    client certificates are the same for every eduTAP service on a cluster, and
+    duplicating them per package would mean configuring one fact in six places.
+    """
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -43,7 +56,7 @@ settings = KafkaSettings()
 
 
 class KafkaSessionManager:
-    """ """
+    """Hands out the process-wide Kafka producer, opening it on first use."""
 
     async def _exit_event(self):
         if getattr(_THREADLOCAL, "kafka_producer", None) is not None:
@@ -55,7 +68,6 @@ class KafkaSessionManager:
             logger.info(
                 f"Create Kafka Producer and try to connect to: {settings.BOOTSTRAP_SERVERS}"
             )
-            producer: AIOKafkaProducer = None
             if (
                 settings.CA_FILE is not None
                 and settings.CERT_FILE is not None
@@ -88,6 +100,7 @@ class KafkaSessionManager:
         return producer
 
     async def kafka_producer(self) -> AIOKafkaProducer:
+        """Return the producer, establishing the connection if there is none yet."""
         if getattr(_THREADLOCAL, "kafka_producer", None) is None:
             _THREADLOCAL.kafka_producer = await self._establish_kafka_producer()
         # logger.debug(_THREADLOCAL.kafka_producer.client.ready())
@@ -98,9 +111,7 @@ kafka_session_manager = KafkaSessionManager()
 
 
 class KafkaCallbackHandler:
-    """
-    Implementation of edutap.wallet_google.protocols.CallbackHandler
-    """
+    """Implementation of edutap.wallet_google.protocols.CallbackHandler."""
 
     async def handle(
         self,

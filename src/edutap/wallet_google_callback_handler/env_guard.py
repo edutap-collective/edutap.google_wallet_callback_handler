@@ -17,6 +17,7 @@ lmu_edutap_dev_setup.
 
 from collections.abc import Mapping
 
+
 # One entry per field of Settings. Whoever adds a field before this guard is
 # removed has to add its retired spelling here -- test_env_guard.py enforces
 # that the two stay in sync.

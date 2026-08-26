@@ -29,35 +29,49 @@ dependencies = [
     "sentry-sdk[fastapi]",
     "fastapi>=0.115.7",
     "uvicorn[standard]>=0.34.0",
-    "pydantic[email,dotenv]>=2.0",
+    "pydantic>=2.0",
     "pydantic-settings",
-    "httpx",
     "structlog",
-  ]
+    # Kafka is not optional. It used to sit in an extra named `kafka`, but
+    # `kafka.py` imports `aiokafka` at module level and `main.py` imports
+    # `kafka.py`, so an install without the extra could not start the service --
+    # and could not even be collected by pytest, which is why the test extra
+    # had to pull `aiokafka` in a second time. The extra promised a choice this
+    # package does not offer.
+    "aiokafka",
+]
 
 [project.urls]
 Source = "https://github.com/edutap-collective/edutap.wallet_google_callback_handler"
 Issues = "https://github.com/edutap-collective/edutap.wallet_google_callback_handler/issues"
 Documentation = "https://docs.edutap.eu/packages/edutap_wallet_google_callback_handler/index.html"
 
-[project.optional-dependencies]
-kafka = [
-    "aiokafka",
-]
+# Development tooling goes in dependency groups (PEP 735), not in
+# optional-dependencies. Extras are part of the published metadata and offer a
+# choice to whoever installs the package; nobody installing this service wants
+# to opt into our test runner. Groups are local to the checkout and never reach
+# the index.
+[dependency-groups]
 test = [
     "pytest",
-    "pytest-asyncio",
-    # Not merely the optional runtime extra: kafka.py imports aiokafka at module
-    # level, so every test that touches this package needs it present -- even the
-    # ones that never reach a broker.
-    "aiokafka",
+    # anyio rather than pytest-asyncio: it is the house async test backend, and
+    # it already sits in the dependency tree underneath Starlette.
+    "anyio>=4",
+    # `fastapi.testclient` needs an httpx. Starlette deprecates the 1.x line and
+    # asks for httpx2, which is also the house client.
+    "httpx2",
 ]
-typecheck  = [
-    "mypy",
-    "pytest-stub",
+typecheck = [
+    "ty",
+]
+lint = [
+    "ruff",
 ]
 dev = [
-    "pdbpp",
+    {include-group = "test"},
+    {include-group = "typecheck"},
+    {include-group = "lint"},
+    "pdbp",
     "ipython",
 ]
 
@@ -87,22 +101,108 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# The key is the IMPORT path, not the distribution name -- the two differ here.
+[tool.setuptools.package-data]
+"edutap.wallet_google_callback_handler" = ["py.typed"]
+
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
-minversion = "6.0"
-testpaths = [
-    "tests",
+minversion = "8.0"
+testpaths = ["tests"]
+
+# The lint, type checker and tox blocks below follow `edutap.wallet_google`
+# rather than inventing a second house style for the same family: the isort
+# options in particular are the eduTAP import layout, and a package that sorts
+# its imports differently from the library it plugs into makes every diff
+# between the two harder to read than it needs to be.
+#
+# What is added on top of the library's set: B, D, S, C4, SIM and RUF. This is a
+# service, not a library, and it is small enough that missing docstrings and
+# bandit findings are a handful rather than a project.
+[tool.ruff]
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "D",    # pydocstyle
+    "S",    # flake8-bandit
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E501",    # the formatter decides where to break
+    "D203",    # mutually exclusive with D211, which the formatter follows
+    "D213",    # mutually exclusive with D212
+    "D107",    # __init__ is documented in its class docstring
 ]
 
-[tool.isort]
-profile = "black"
-force_alphabetical_sort = true
-force_single_line = true
-lines_after_imports = 2
+[tool.ruff.lint.per-file-ignores]
+# Tests assert (S101), and a test's name is its statement -- the reasoning sits
+# in the module docstring, not on every function (D103). The stand-in classes a
+# test builds are scaffolding, not API (D101, D102).
+"tests/*" = ["S101", "D101", "D102", "D103"]
 
-[tool.black]
-target-version = ["py310"]
-include = "src"
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.ruff.lint.isort]
+force-single-line = true
+from-first = true
+lines-after-imports = 2
+lines-between-types = 1
+no-sections = true
+order-by-type = false
+
+[tool.ty.environment]
+python-version = "3.10"
+extra-paths = ["src", "tests"]
+
+[tool.ty.rules]
+unresolved-import = "warn"
+# stricter than mypy was; warnings for now, as in edutap.wallet_google
+unresolved-attribute = "warn"
+invalid-argument-type = "warn"
+unknown-argument = "warn"
+not-iterable = "warn"
+
+[tool.tox]
+min_version = "4.4.0"
+env_list = ["py310", "py311", "py312", "py313", "py314", "lint", "typecheck"]
+
+[tool.tox.gh.python]
+"3.10" = ["py310"]
+"3.11" = ["py311"]
+"3.12" = ["py312"]
+"3.13" = ["py313"]
+"3.14" = ["py314"]
+
+[tool.tox.env_run_base]
+description = "run the test suite"
+package = "editable"
+dependency_groups = ["test"]
+commands = [["pytest", { replace = "posargs", extend = true }]]
+
+[tool.tox.env.lint]
+description = "check style and formatting"
+skip_install = true
+dependency_groups = ["lint"]
+commands = [
+    ["ruff", "check", "src", "tests"],
+    ["ruff", "format", "--check", "src", "tests"],
+]
+
+[tool.tox.env.typecheck]
+description = "run the type checker"
+package = "editable"
+dependency_groups = ["test", "typecheck"]
+commands = [["ty", "check", "src", "tests"]]
 
 [tool.codespell]
 ignore-words-list = "discreet,"
@@ -111,8 +211,6 @@ ignore-words-list = "discreet,"
 ignore = [
     ".editorconfig",
     ".pre-commit-config.yaml",
+    "Makefile",
     "tox.ini",
-    "mypy.ini",
-    ".flake8",
-    "mx.ini",
 ]

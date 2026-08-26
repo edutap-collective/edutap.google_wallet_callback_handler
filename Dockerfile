@@ -16,6 +16,6 @@ COPY src /app/src
 COPY pyproject.toml /app
 
 # RUN python3 -m venv venv
-RUN pip install --no-cache-dir -e "/app[kafka]"
+RUN pip install --no-cache-dir -e /app
 
 CMD ["sh", "-c", "uvicorn edutap.wallet_google_callback_handler.main:app --proxy-headers --host 0.0.0.0 --port $HTTP_PORT --access-log"]

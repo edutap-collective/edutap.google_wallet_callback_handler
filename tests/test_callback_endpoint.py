@@ -20,12 +20,24 @@ What is left to check is that an *accepted* message reaches Kafka intact.
 from edutap.wallet_google.clientpool import client_pool
 from edutap.wallet_google_callback_handler import main as main_module
 from fastapi.testclient import TestClient
+from typing import TypedDict
 
 import json
 import pytest
 
 
-SIGNED_MESSAGE = {
+class SignedMessagePayload(TypedDict):
+    """Google's wire format for the signed message, as the library models it."""
+
+    classId: str
+    objectId: str
+    eventType: str
+    expTimeMillis: int
+    count: int
+    nonce: str
+
+
+SIGNED_MESSAGE: SignedMessagePayload = {
     "classId": "3388000000022125777.test-class",
     "objectId": "3388000000022125777.abc-123",
     "eventType": "SAVE",
@@ -63,9 +75,7 @@ def producer(monkeypatch):
     async def _producer():
         return fake
 
-    monkeypatch.setattr(
-        main_module.kafka_session_manager, "kafka_producer", _producer
-    )
+    monkeypatch.setattr(main_module.kafka_session_manager, "kafka_producer", _producer)
     return fake
 
 
@@ -77,9 +87,7 @@ def unverified(monkeypatch):
     variable: `client_pool` is built at import time, so an env var set from a
     test would arrive too late.
     """
-    monkeypatch.setattr(
-        client_pool.settings, "handler_callback_verify_signature", "0"
-    )
+    monkeypatch.setattr(client_pool.settings, "handler_callback_verify_signature", "0")
 
 
 @pytest.fixture

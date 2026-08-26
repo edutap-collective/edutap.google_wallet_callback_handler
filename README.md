@@ -63,3 +63,22 @@ make sure that ./kafka_data has the necessary permissions
 - permission complaints concerning the `./letsencrypt` dir
 
 fiddle around with the permissions of this directory ;)
+## Development
+
+Everything runs through the `Makefile`, and the CI calls the same targets, so a
+green checkout is a green pipeline.
+
+```bash
+make sync          # create or refresh the environment (uv)
+make lint          # ruff check, ruff format --check, ty check
+make reformat      # apply what ruff can fix itself
+make test-local    # the fast suite: no broker, no network
+make test-matrix   # the suite on every supported Python version (tox)
+make docker-build  # build the service image
+```
+
+`make help` lists them.
+
+Install the commit hooks once with `prek install`; `prek run --all-files` runs
+them over the whole tree. The configuration lives in `.pre-commit-config.yaml`
+and is readable by `pre-commit` as well.

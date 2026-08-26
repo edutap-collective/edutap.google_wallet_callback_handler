@@ -1,48 +1,37 @@
+# Run these with prek (`prek install`, `prek run --all-files`). The file format
+# is the one pre-commit reads, so either runner works on it.
+#
+# What used to be five hooks -- pyupgrade, isort, black, flake8, mypy -- is now
+# two: ruff replaces the first four, and the type checker runs from the Makefile
+# rather than here, because it needs the project's own environment and a hook
+# that builds its own cannot see the installed dependencies.
 ci:
   autofix_prs: false
   autoupdate_schedule: monthly
 
 repos:
-- repo: https://github.com/asottile/pyupgrade
-  rev: v3.11.2
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.16.4
   hooks:
-  - id: pyupgrade
-- repo: https://github.com/pycqa/isort
-  rev: 5.12.0
-  hooks:
-  - id: isort
-- repo: https://github.com/psf/black
-  rev: 23.9.1
-  hooks:
-  - id: black
-- repo: https://github.com/PyCQA/flake8
-  rev: 6.1.0
-  hooks:
-  - id: flake8
-- repo: https://github.com/pre-commit/mirrors-mypy
-  rev: v1.5.1
-  hooks:
-  - id: mypy
-    additional_dependencies:
-    - "types-requests"
-    - "pytest-stub"
+  - id: ruff-check
+    args: [--fix]
+  - id: ruff-format
 - repo: https://github.com/codespell-project/codespell
-  rev: v2.2.5
+  rev: v2.4.3
   hooks:
   - id: codespell
     additional_dependencies:
     - tomli
 - repo: https://github.com/mgedmin/check-manifest
-  rev: "0.49"
+  rev: "0.51"
   hooks:
   - id: check-manifest
-#    args: [--create]
 - repo: https://github.com/regebro/pyroma
-  rev: "4.2"
+  rev: "5.0.1"
   hooks:
   - id: pyroma
 - repo: https://github.com/mgedmin/check-python-versions
-  rev: "0.21.3"
+  rev: "0.24.2"
   hooks:
   - id: check-python-versions
     args: ['--only', 'pyproject.toml']

@@ -5,10 +5,13 @@ unhealthy exactly when the Kafka producer is closed -- which is the condition
 that makes the service useless, because a callback it cannot publish is lost.
 """
 
-import pytest
+from edutap.wallet_google_callback_handler import main as main_module
 from fastapi import HTTPException
 
-from edutap.wallet_google_callback_handler import main as main_module
+import pytest
+
+
+pytestmark = pytest.mark.anyio
 
 
 class FakeProducer:
@@ -16,7 +19,6 @@ class FakeProducer:
         self._closed = closed
 
 
-@pytest.mark.asyncio
 async def test_healthy_while_the_producer_is_open(monkeypatch):
     async def _producer():
         return FakeProducer(closed=False)
@@ -28,7 +30,6 @@ async def test_healthy_while_the_producer_is_open(monkeypatch):
     assert response.status_code == 200
 
 
-@pytest.mark.asyncio
 async def test_unhealthy_once_the_producer_is_closed(monkeypatch):
     """503, not 500: the orchestrator must take the instance out of rotation.
 

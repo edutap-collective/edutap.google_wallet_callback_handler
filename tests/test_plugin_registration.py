@@ -62,4 +62,3 @@ def test_the_handler_satisfies_the_protocol():
     name of `handle`, not its signature. It still catches a rename.
     """
     assert isinstance(KafkaCallbackHandler(), CallbackHandler)
-

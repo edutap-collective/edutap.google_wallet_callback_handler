@@ -1,10 +1,17 @@
+"""The ASGI application: the callback route, the health check, and the wiring.
+
+The callback route itself belongs to `edutap.wallet_google`; what this module
+adds is the app it is mounted in, the Sentry and logging setup, and the health
+check the orchestrator reads.
+"""
+
 from aiokafka import AIOKafkaProducer
 from contextlib import asynccontextmanager
+from edutap.wallet_google.handlers.fastapi import router_callback
 from edutap.wallet_google_callback_handler.env_guard import check_retired_env_vars
 from edutap.wallet_google_callback_handler.kafka import kafka_session_manager
 from edutap.wallet_google_callback_handler.log import logger
 from edutap.wallet_google_callback_handler.settings import Settings
-from edutap.wallet_google.handlers.fastapi import router_callback
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi import Response
@@ -26,11 +33,14 @@ __version__ = version("edutap.wallet_google_callback_handler")
 check_retired_env_vars(os.environ)
 
 settings = Settings()
-SERVICE_NAME = "eduTAP Google Wallet Callback Service (edutap.wallet_google_callback_handler)"
+SERVICE_NAME = (
+    "eduTAP Google Wallet Callback Service (edutap.wallet_google_callback_handler)"
+)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Start and stop the parts of the service that outlive a single request."""
     # Initializing
     logger.info("%s: Initializing Service Start", SERVICE_NAME)
 
@@ -78,11 +88,18 @@ app = FastAPI(
 
 @app.get("/")
 async def read_root():
+    """Name the service, for anyone who reaches it in a browser."""
     return {"Module": "eduTAP Google Wallet Callback Service"}
 
 
 @app.head("/")
 async def basic_health_check():
+    """Report whether the service can still publish what it accepts.
+
+    A callback it cannot write to Kafka is a callback that is lost, so a closed
+    producer has to take the instance out of rotation rather than keep it
+    answering 200.
+    """
     # Check if Kafka is available
     producer: AIOKafkaProducer = await kafka_session_manager.kafka_producer()
     if producer._closed:
@@ -94,9 +111,12 @@ async def basic_health_check():
 
 
 def main():
+    """Run the service under uvicorn -- the console script entry point."""
     uvicorn.run(
         app=app,
-        host="0.0.0.0",
+        # The service only ever runs in a container, where binding to the
+        # container-local loopback would make it unreachable from the outside.
+        host="0.0.0.0",  # noqa: S104
         port=8085,
         log_level="debug",
         reload=False,

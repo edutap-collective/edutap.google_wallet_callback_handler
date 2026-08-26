@@ -49,3 +49,10 @@ var/
 /*.json
 /kafka_data/
 /letsencrypt/
+
+# uv / tooling
+.venv/
+uv.lock.bak
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/

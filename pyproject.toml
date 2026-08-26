@@ -9,13 +9,14 @@ authors = [
     {name = "Philipp Auersperg-Castell", email = "phil@bluedynamics.com"},
     {name = "Jens Klein", email = "jk@kleinundpartner.at"},
 ]
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.10"
 license = { text = "EUPL 1.2" }
 classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "License :: OSI Approved :: European Union Public Licence 1.2 (EUPL 1.2)",
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

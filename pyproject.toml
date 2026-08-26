@@ -216,12 +216,11 @@ dependency_groups = ["test", "typecheck"]
 commands = [["ty", "check", "src", "tests"]]
 
 [tool.codespell]
-ignore-words-list = "discreet,"
+# VAS is Apple's "Value Added Services", not a misspelling of "was".
+ignore-words-list = "discreet,vas"
 
 [tool.check-manifest]
 ignore = [
     ".editorconfig",
     ".pre-commit-config.yaml",
-    "Makefile",
-    "tox.ini",
 ]

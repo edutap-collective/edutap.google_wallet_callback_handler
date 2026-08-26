@@ -63,3 +63,71 @@ make sure that ./kafka_data has the necessary permissions
 - permission complaints concerning the `./letsencrypt` dir
 
 fiddle around with the permissions of this directory ;)
+## Development
+
+Everything runs through the `Makefile`, and the CI calls the same targets, so a
+green checkout is a green pipeline.
+
+```bash
+make sync              # create or refresh the environment (uv)
+make lint              # ruff check, ruff format --check, ty check
+make reformat          # apply what ruff can fix itself
+make test-local        # the fast suite: no broker, no network
+make test-integration  # the suite against a real broker (starts one)
+make test-matrix       # the fast suite on every supported Python version (tox)
+make docker-build      # build the service image for the cluster's architecture
+```
+
+`make help` lists them.
+
+Install the commit hooks once with `prek install`; `prek run --all-files` runs
+them over the whole tree. The configuration lives in `.pre-commit-config.yaml`
+and `pre-commit` reads it just as well.
+
+### Tests
+
+`make test-local` needs nothing but the environment. It substitutes the Kafka
+producer, which is the right thing for tests about this package's own decisions
+-- which topic an event goes to, what the record key is, what happens when the
+broker is gone.
+
+`make test-integration` is the one that talks to a broker. It starts the
+single-node Kafka in `compose.test.yml`, runs the tests marked `integration`,
+and takes the broker down again whether they passed or not. Those tests are
+deselected by default, so a laptop with no Docker daemon can still run the
+suite.
+
+```bash
+make test-integration
+
+# or, with a broker of your own:
+docker compose -f compose.test.yml up -d --wait
+EDUTAP_KAFKA_BOOTSTRAP_SERVERS=localhost:9092 uv run pytest -m integration
+docker compose -f compose.test.yml down -v
+```
+
+### Container image
+
+```bash
+make docker-build
+docker run --rm -p 8086:8086 edutap-wallet-google-callback-handler:local
+```
+
+The image is built for `linux/amd64` regardless of the machine building it:
+every cluster node is x86_64, and an arm64 image fails at start with `exec
+format error`. It runs as an unprivileged user and listens on `$HTTP_PORT`,
+which defaults to 8086.
+
+### Configuration
+
+Three environment namespaces meet in this service, and they are not
+interchangeable:
+
+| Prefix | Read by | Examples |
+| --- | --- | --- |
+| `EDUTAP_WALLET_GOOGLE_CALLBACK_HANDLER_` | this package | `ENVIRONMENT`, `SENTRY_DSN` |
+| `EDUTAP_KAFKA_` | this package, shared across the estate | `BOOTSTRAP_SERVERS`, `GOOGLE_CALLBACK_TOPIC`, `CA_FILE`, `CERT_FILE`, `KEY_FILE` |
+| `EDUTAP_WALLET_GOOGLE_` | `edutap.wallet_google` | `GOOGLE_ENVIRONMENT`, `HANDLER_CALLBACK_VERIFY_SIGNATURE` |
+
+The Kafka prefix is deliberately not this package's own: the broker list and the
+client certificates are the same for every eduTAP service on a cluster.

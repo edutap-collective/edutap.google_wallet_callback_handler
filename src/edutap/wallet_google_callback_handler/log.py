@@ -1,28 +1,34 @@
+"""Logging setup for the service.
+
+`logger` is safe to import anywhere: `structlog.get_logger()` is lazy and binds
+nothing until the first call. Configuring the standard library underneath it is
+a process-wide side effect, so it happens once, from the application lifespan --
+not at import, where it used to run for anything that so much as touched this
+package, the test suite included.
+"""
+
 import http.client
 import logging
 import structlog
 
 
-def config_logger(level=logging.INFO):
-    # Initializing
-    logger = structlog.get_logger(level=level)
-
-    # You must initialize logging, otherwise you'll not see debug output.
-    logging.basicConfig()
-    if level == logging.DEBUG:
-        # These two lines enable debugging at httplib level (requests->urllib3->http.client)
-        # You will see the REQUEST, including HEADERS and DATA, and RESPONSE with HEADERS but without DATA.
-        # The only thing missing will be the response.body which is not logged.
-        http.client.HTTPConnection.debuglevel = 1
-        requests_log = logging.getLogger("requests.packages.urllib3")
-        requests_log.setLevel(logging.DEBUG)
-        requests_log.propagate = True
-        # logger.setLevel(logging.DEBUG)
-    elif level == logging.INFO:
-        # logger.setLevel(logging.INFO)
-        pass
-
-    return logger
+logger = structlog.get_logger()
 
 
-logger = config_logger(level=logging.INFO)  # noqa: F841
+def configure_logging(level: int = logging.INFO) -> None:
+    """Configure the standard library logging that structlog renders through.
+
+    Called from the application lifespan rather than from `main()`: the container
+    starts uvicorn against `main:app` directly and never calls `main()`, so
+    anything configured only there would be missing in production and present
+    locally.
+    """
+    logging.basicConfig(level=level)
+    if level > logging.DEBUG:
+        return
+    # Log the HTTP conversation as well: request line, headers and body, and the
+    # response headers. The response body is not covered by this.
+    http.client.HTTPConnection.debuglevel = 1
+    urllib3_logger = logging.getLogger("requests.packages.urllib3")
+    urllib3_logger.setLevel(logging.DEBUG)
+    urllib3_logger.propagate = True

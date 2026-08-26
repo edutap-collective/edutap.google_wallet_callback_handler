@@ -1,2 +1,10 @@
+# The source distribution carries what is needed to check out, build and test
+# the package -- including the tests themselves, which is what a downstream
+# packager runs before shipping it.
+include *.md
 include *.yaml
+include *.yml
+include *.lock
 include Dockerfile
+include Makefile
+recursive-include tests *.py

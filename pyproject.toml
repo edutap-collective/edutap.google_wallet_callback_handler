@@ -64,6 +64,22 @@ dev = [
 [project.scripts]
 google-wallet-callback-handler = "edutap.wallet_google_callback_handler.main:main"
 
+# What makes this service more than an empty FastAPI app.
+#
+# `edutap.wallet_google` does not import a handler, it discovers one: the
+# callback route calls `get_callback_handlers()`, which reads this entry point
+# group and raises `NotImplementedError` when it comes up empty -- answering
+# every callback with HTTP 500 and writing nothing to Kafka. Until 2026-08-26
+# this package declared no such entry point at all, so that is exactly what the
+# deployed service did, while its health check kept reporting healthy because it
+# only ever looked at the Kafka producer.
+#
+# The name must *start with* `CallbackHandler`: the library filters the group
+# with `ep.name.startswith(...)`, which is also what lets a package register
+# several handlers (`CallbackHandlerKafka`, `CallbackHandlerAudit`, ...).
+[project.entry-points."edutap.wallet_google.plugins"]
+CallbackHandler = "edutap.wallet_google_callback_handler.kafka:KafkaCallbackHandler"
+
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"

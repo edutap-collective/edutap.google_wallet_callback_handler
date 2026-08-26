@@ -5,7 +5,13 @@
 # pipeline lets something through that would have been red locally.
 
 UV ?= uv
-RUN := $(UV) run
+# `--no-sync` on purpose: a bare `uv run` re-resolves the project on every
+# invocation, which puts a network round trip in the middle of a lint. The
+# `sync` prerequisite is what keeps the environment current.
+RUN := $(UV) run --no-sync
+
+COMPOSE_TEST := compose.test.yml
+IMAGE := edutap-wallet-google-callback-handler:local
 
 .DEFAULT_GOAL := help
 
@@ -38,13 +44,25 @@ typecheck: sync  ## run the type checker on its own
 test-local: sync  ## the fast suite: no broker, no network
 	$(RUN) pytest
 
+# Starts the broker, runs the opt-in tests, and takes the broker down again
+# whether they passed or not -- while still failing the target if they did not.
+.PHONY: test-integration
+test-integration: sync  ## the suite against a real Kafka broker (starts one)
+	docker compose -f $(COMPOSE_TEST) up -d --wait
+	@status=0; $(RUN) pytest -m integration || status=$$?; \
+		docker compose -f $(COMPOSE_TEST) down -v; \
+		exit $$status
+
 .PHONY: test-matrix
-test-matrix:  ## the suite across every supported Python version
+test-matrix:  ## the fast suite across every supported Python version
 	uvx --with tox-uv tox
 
+# The image is what reaches the cluster. `--platform` matters on an Apple
+# Silicon machine: every cluster node is x86_64, and without it the container
+# fails at start with "exec format error".
 .PHONY: docker-build
-docker-build:  ## build the service image the way the registry does
-	docker build --tag edutap-wallet-google-callback-handler:local .
+docker-build:  ## build the container image for the cluster's architecture
+	docker build --platform linux/amd64 --tag $(IMAGE) .
 
 .PHONY: clean
 clean:  ## remove build and tool caches

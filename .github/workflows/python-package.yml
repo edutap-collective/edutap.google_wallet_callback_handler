@@ -43,3 +43,15 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
       - run: make test-local
+
+  integration:
+    name: integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      # Starts the single-node broker from compose.test.yml, runs the tests
+      # marked `integration`, and takes the broker down again.
+      - run: make test-integration

@@ -108,6 +108,13 @@ where = ["src"]
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
+markers = [
+    "integration: needs a running Kafka broker (compose.test.yml); run with `make test-integration`",
+]
+# The integration test is opt-in. `pytest` and `make test-local` have to stay
+# runnable on a laptop with no Docker daemon; `make test-integration` passes its
+# own `-m integration`, and the later flag wins.
+addopts = "-m 'not integration'"
 # The suite is warning-free as of this commit, and it stays that way. It spent
 # months printing `coroutine 'KafkaSessionManager._exit_event' was never awaited`
 # on every run without anyone reading it.
@@ -209,12 +216,11 @@ dependency_groups = ["test", "typecheck"]
 commands = [["ty", "check", "src", "tests"]]
 
 [tool.codespell]
-ignore-words-list = "discreet,"
+# VAS is Apple's "Value Added Services", not a misspelling of "was".
+ignore-words-list = "discreet,vas"
 
 [tool.check-manifest]
 ignore = [
     ".editorconfig",
     ".pre-commit-config.yaml",
-    "Makefile",
-    "tox.ini",
 ]

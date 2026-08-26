@@ -1,0 +1,40 @@
+# One broker, for `make test-integration`. Nothing else belongs in here.
+#
+# `docker-compose.yaml` next to it is the demo appliance -- traefik, Let's
+# Encrypt, a Kafka UI, the service itself. Useful for showing the thing to
+# somebody, useless for a test run that has to start in seconds and leave
+# nothing behind.
+services:
+  kafka:
+    image: apache/kafka:4.1.0
+    ports:
+      - "9092:9092"
+    environment:
+      # Single-node KRaft: this broker is also its own controller.
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      # Advertised as localhost because the tests run on the host, not in a
+      # container on this network.
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # The tests use a fresh topic name per run rather than sharing one, so the
+      # broker has to create it on first write.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    # `docker compose up --wait` waits for this, so the test run does not race
+    # the broker's startup.
+    healthcheck:
+      test:
+        ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh",
+         "--bootstrap-server", "localhost:9092"]
+      interval: 3s
+      timeout: 10s
+      retries: 20
+      start_period: 5s

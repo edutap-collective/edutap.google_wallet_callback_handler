@@ -1,5 +1,8 @@
-version: "3"
-
+# The demo appliance: the service, a broker, a Kafka UI and a traefik in front
+# with Let's Encrypt. For a test run use `compose.test.yml`, which is a broker
+# and nothing else.
+#
+# No top level `version:` -- Compose has ignored it since v2 and warns about it.
 services:
 
   # FastAPI server handling the callback
@@ -11,15 +14,21 @@ services:
     build:
       context: .
       args:
-        - HTTP_PORT=${HTTP_PORT:-80}
-        - BROKER_URL=${BROKER_URL:-kafka:19094}
+        # 8086 is what the Dockerfile and the deployed stack use.
+        - HTTP_PORT=${HTTP_PORT:-8086}
+    environment:
+      # The application reads its brokers from EDUTAP_KAFKA_BOOTSTRAP_SERVERS.
+      # It never read BROKER_URL, which stood in this file as a build argument
+      # for a long time and reached nothing.
+      EDUTAP_KAFKA_BOOTSTRAP_SERVERS: ${EDUTAP_KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      EDUTAP_KAFKA_GOOGLE_CALLBACK_TOPIC: ${EDUTAP_KAFKA_GOOGLE_CALLBACK_TOPIC:-edutap.google_callback}
     # develop:
     #   watch:
     #   - path: .
     #     action: sync
     #     target: /app
     ports:
-      - "${HTTP_PORT:-8083}:${HTTP_PORT:-80}"
+      - "${HTTP_PORT:-8086}:${HTTP_PORT:-8086}"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.callback-handler.rule=Host(`${DOMAIN}`) && PathPrefix(`/`)"

@@ -8,6 +8,7 @@ that, every module reached into `kafka.py`'s module state with its own
 """
 
 from edutap.wallet_google_callback_handler.kafka import KafkaSettings
+from typing import TypedDict
 
 import pytest
 
@@ -92,3 +93,27 @@ def _clear_kafka_settings_cache():
     get_kafka_settings.cache_clear()
     yield
     get_kafka_settings.cache_clear()
+
+
+class CallbackEvent(TypedDict):
+    """The six arguments `CallbackHandler.handle` takes, as the protocol names them."""
+
+    class_id: str
+    object_id: str
+    event_type: str
+    exp_time_millis: int
+    count: int
+    nonce: str
+
+
+# `SAVE` rather than `save`: the library passes `eventType.value`, and its enum
+# values are upper case. `expTimeMillis` is 2030-01-01, so the library's expiry
+# check passes without anyone having to freeze time.
+EVENT: CallbackEvent = {
+    "class_id": "3388000000022125777.test-class",
+    "object_id": "3388000000022125777.abc-123",
+    "event_type": "SAVE",
+    "exp_time_millis": 1893456000000,
+    "count": 1,
+    "nonce": "6f1c1e5a-0000-4000-8000-000000000000",
+}

@@ -11,38 +11,17 @@ one. The library instantiates plugins with no arguments, and
 `test_plugin_registration.py` covers that path.
 """
 
+from conftest import EVENT
 from conftest import FakeProducer
 from conftest import FakeSessionManager
 from edutap.wallet_google_callback_handler.kafka import KafkaCallbackHandler
 from edutap.wallet_google_callback_handler.kafka import KafkaSettings
-from typing import TypedDict
 
 import json
 import pytest
 
 
 pytestmark = pytest.mark.anyio
-
-
-class CallbackEvent(TypedDict):
-    """The six arguments `CallbackHandler.handle` takes, as the protocol names them."""
-
-    class_id: str
-    object_id: str
-    event_type: str
-    exp_time_millis: int
-    count: int
-    nonce: str
-
-
-EVENT: CallbackEvent = {
-    "class_id": "3388000000022125777.test-class",
-    "object_id": "3388000000022125777.abc-123",
-    "event_type": "save",
-    "exp_time_millis": 1893456000000,
-    "count": 1,
-    "nonce": "6f1c1e5a-0000-4000-8000-000000000000",
-}
 
 
 async def test_event_is_published_to_the_configured_topic(session_manager, producer):

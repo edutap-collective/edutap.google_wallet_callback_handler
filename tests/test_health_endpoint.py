@@ -5,7 +5,9 @@ unhealthy exactly when the Kafka producer is closed -- which is the condition
 that makes the service useless, because a callback it cannot publish is lost.
 """
 
-from edutap.wallet_google_callback_handler import main as main_module
+from conftest import FakeProducer
+from conftest import FakeSessionManager
+from edutap.wallet_google_callback_handler.main import basic_health_check
 from fastapi import HTTPException
 
 import pytest
@@ -14,35 +16,23 @@ import pytest
 pytestmark = pytest.mark.anyio
 
 
-class FakeProducer:
-    def __init__(self, closed: bool):
-        self._closed = closed
+async def test_healthy_while_the_producer_is_open():
+    manager = FakeSessionManager(producer=FakeProducer(closed=False))
 
-
-async def test_healthy_while_the_producer_is_open(monkeypatch):
-    async def _producer():
-        return FakeProducer(closed=False)
-
-    monkeypatch.setattr(main_module.kafka_session_manager, "kafka_producer", _producer)
-
-    response = await main_module.basic_health_check()
+    response = await basic_health_check(session_manager=manager)
 
     assert response.status_code == 200
 
 
-async def test_unhealthy_once_the_producer_is_closed(monkeypatch):
+async def test_unhealthy_once_the_producer_is_closed():
     """503, not 500: the orchestrator must take the instance out of rotation.
 
     A closed producer means published callbacks would be dropped, so the
     instance has to stop receiving traffic rather than keep answering 200.
     """
-
-    async def _producer():
-        return FakeProducer(closed=True)
-
-    monkeypatch.setattr(main_module.kafka_session_manager, "kafka_producer", _producer)
+    manager = FakeSessionManager(producer=FakeProducer(closed=True))
 
     with pytest.raises(HTTPException) as excinfo:
-        await main_module.basic_health_check()
+        await basic_health_check(session_manager=manager)
 
     assert excinfo.value.status_code == 503

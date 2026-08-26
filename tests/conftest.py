@@ -37,10 +37,12 @@ class FakeProducer:
         self._closed = closed
         self._fail_on_send = fail_on_send
 
-    async def send(self, topic, key, value):
+    async def send(self, topic, key, value, headers=None):
         if self._fail_on_send is not None:
             raise self._fail_on_send
-        self.sent.append({"topic": topic, "key": key, "value": value})
+        self.sent.append(
+            {"topic": topic, "key": key, "value": value, "headers": headers}
+        )
 
     async def flush(self):
         self.flushed += 1

@@ -1,9 +1,12 @@
+"""Logging setup for the service."""
+
 import http.client
 import logging
 import structlog
 
 
 def config_logger(level=logging.INFO):
+    """Configure and return the structlog logger for this process."""
     # Initializing
     logger = structlog.get_logger(level=level)
 
@@ -25,4 +28,4 @@ def config_logger(level=logging.INFO):
     return logger
 
 
-logger = config_logger(level=logging.INFO)  # noqa: F841
+logger = config_logger(level=logging.INFO)

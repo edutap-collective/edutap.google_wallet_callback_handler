@@ -5,9 +5,12 @@ the broker authenticated or not, and it is driven purely by whether three
 settings happen to be set. Worth pinning down.
 """
 
+from edutap.wallet_google_callback_handler import kafka as kafka_module
+
 import pytest
 
-from edutap.wallet_google_callback_handler import kafka as kafka_module
+
+pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture(autouse=True)
@@ -36,7 +39,6 @@ def captured(monkeypatch):
     return calls
 
 
-@pytest.mark.asyncio
 async def test_without_certificates_the_producer_is_plaintext(captured, monkeypatch):
     monkeypatch.delenv("EDUTAP_KAFKA_CA_FILE", raising=False)
     monkeypatch.delenv("EDUTAP_KAFKA_CERT_FILE", raising=False)
@@ -48,7 +50,6 @@ async def test_without_certificates_the_producer_is_plaintext(captured, monkeypa
     assert "ssl_context" not in captured[0]
 
 
-@pytest.mark.asyncio
 async def test_with_all_three_certificates_the_producer_uses_ssl(
     captured, monkeypatch, tmp_path
 ):
@@ -66,7 +67,6 @@ async def test_with_all_three_certificates_the_producer_uses_ssl(
     assert captured[0]["ssl_context"] == "ssl-context"
 
 
-@pytest.mark.asyncio
 async def test_a_partial_certificate_set_falls_back_to_plaintext(
     captured, monkeypatch, tmp_path
 ):
@@ -87,7 +87,6 @@ async def test_a_partial_certificate_set_falls_back_to_plaintext(
     assert "security_protocol" not in captured[0]
 
 
-@pytest.mark.asyncio
 async def test_the_producer_is_built_once_and_reused(captured, monkeypatch):
     """The manager caches per thread; a second call must not open a connection."""
     monkeypatch.delenv("EDUTAP_KAFKA_CA_FILE", raising=False)

@@ -3,21 +3,32 @@
 The callback route itself belongs to `edutap.wallet_google`; what this module
 adds is the app it is mounted in, the Sentry and logging setup, and the health
 check the orchestrator reads.
+
+`create_app()` is the seam. Importing this module reads no environment and
+builds nothing, so a test can construct an application with the settings it
+wants instead of exporting variables before the import and hoping nothing
+imported the module earlier. `app` below is one such application, built with the
+process's own settings, because `uvicorn edutap...main:app` needs a name to
+point at.
 """
 
-from aiokafka import AIOKafkaProducer
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from edutap.wallet_google.handlers.fastapi import router_callback
+from edutap.wallet_google_callback_handler import kafka as kafka_module
 from edutap.wallet_google_callback_handler.env_guard import check_retired_env_vars
-from edutap.wallet_google_callback_handler.kafka import kafka_session_manager
+from edutap.wallet_google_callback_handler.kafka import KafkaSession
+from edutap.wallet_google_callback_handler.log import configure_logging
 from edutap.wallet_google_callback_handler.log import logger
 from edutap.wallet_google_callback_handler.settings import Settings
+from fastapi import Depends
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi import Response
 from importlib.metadata import version
 from starlette.status import HTTP_200_OK
 from starlette.status import HTTP_503_SERVICE_UNAVAILABLE
+from typing import Annotated
 
 import os
 import sentry_sdk
@@ -26,78 +37,37 @@ import uvicorn
 
 __version__ = version("edutap.wallet_google_callback_handler")
 
-# Before the settings are read: every field has a default, so a deployment still
-# exporting the retired EDUTAP_* names would start with development defaults.
-check_retired_env_vars(os.environ)
-
-settings = Settings()
 SERVICE_NAME = (
     "eduTAP Google Wallet Callback Service (edutap.wallet_google_callback_handler)"
 )
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Start and stop the parts of the service that outlive a single request."""
-    # Initializing
-    logger.info("%s: Initializing Service Start", SERVICE_NAME)
+def get_session_manager() -> KafkaSession:
+    """Return the Kafka session manager the routes publish through.
 
-    if settings.SENTRY_DSN:
-        sentry_sdk.init(
-            dsn=settings.SENTRY_DSN,
-            # Add data like request headers and IP for users,
-            # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
-            send_default_pii=True,
-            # Set traces_sample_rate to 1.0 to capture 100%
-            # of transactions for tracing.
-            traces_sample_rate=1.0,
-            debug=settings.ENVIRONMENT == "development",
-            environment=settings.ENVIRONMENT,
-        )
-
-    logger.info("%s: Service Ready", SERVICE_NAME)
-    yield
-
-    logger.info("%s: Initializing Service Shutdown", SERVICE_NAME)
-    # The Kafka producer is the one resource that outlives a request and has to
-    # be closed by someone. It used to be handed to `atexit`, which cannot await
-    # anything -- see the commit message.
-    await kafka_session_manager.close()
-    logger.info("%s: Service Shutdown completed", SERVICE_NAME)
+    Resolved through the module rather than imported by value, so that replacing
+    `kafka.kafka_session_manager` reaches the routes too. As a FastAPI dependency
+    it can also be overridden per application with `app.dependency_overrides`.
+    """
+    return kafka_module.kafka_session_manager
 
 
-app = FastAPI(
-    title="eduTAP Google Wallet Callback Service",
-    description="A fastAPI based eduTAP Google Wallet Callback Service, to handle register and unregister events of passes in the device wallets.",
-    summary="",
-    version=__version__,
-    openapi_url="/openapi.json" if settings.ENVIRONMENT == "development" else None,
-    lifespan=lifespan,
-    root_path="/wallet/google",
-)
+SessionManager = Annotated[KafkaSession, Depends(get_session_manager)]
 
 
-# The route this service exists for. It belongs to `edutap.wallet_google`; all
-# this package does is mount it and register the handler it calls.
-app.include_router(router_callback, prefix="/v1")
-
-
-@app.get("/")
-async def read_root():
+async def read_root() -> dict[str, str]:
     """Name the service, for anyone who reaches it in a browser."""
     return {"Module": "eduTAP Google Wallet Callback Service"}
 
 
-@app.head("/")
-async def basic_health_check():
+async def basic_health_check(session_manager: SessionManager) -> Response:
     """Report whether the service can still publish what it accepts.
 
     A callback it cannot write to Kafka is a callback that is lost, so a closed
-    producer has to take the instance out of rotation rather than keep it
+    producer has to take the instance out of rotation rather than let it keep
     answering 200.
     """
-    # Check if Kafka is available
-    producer: AIOKafkaProducer = await kafka_session_manager.kafka_producer()
+    producer = await session_manager.kafka_producer()
     if producer._closed:
         raise HTTPException(
             status_code=HTTP_503_SERVICE_UNAVAILABLE,
@@ -106,7 +76,74 @@ async def basic_health_check():
     return Response(status_code=HTTP_200_OK)
 
 
-def main():
+def create_app(settings: Settings | None = None) -> FastAPI:
+    """Build the application.
+
+    :param settings: the configuration to build it from; read from the
+        environment when omitted.
+    """
+    if settings is None:
+        # Before the settings are read: every field has a default, so a
+        # deployment still exporting the retired EDUTAP_* names would come up
+        # with development defaults and report to nobody.
+        check_retired_env_vars(os.environ)
+        settings = Settings()
+
+    is_development = settings.ENVIRONMENT == "development"
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        """Start and stop the parts of the service that outlive a request."""
+        configure_logging()
+        logger.info("%s: Initializing Service Start", SERVICE_NAME)
+
+        if settings.SENTRY_DSN:
+            sentry_sdk.init(
+                dsn=settings.SENTRY_DSN,
+                # Add data like request headers and IP for users,
+                # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+                send_default_pii=True,
+                # Set traces_sample_rate to 1.0 to capture 100%
+                # of transactions for tracing.
+                traces_sample_rate=1.0,
+                debug=is_development,
+                environment=settings.ENVIRONMENT,
+            )
+
+        logger.info("%s: Service Ready", SERVICE_NAME)
+        yield
+
+        logger.info("%s: Initializing Service Shutdown", SERVICE_NAME)
+        # The Kafka producer is the one resource that outlives a request and has
+        # to be closed by someone.
+        await get_session_manager().close()
+        logger.info("%s: Service Shutdown completed", SERVICE_NAME)
+
+    app = FastAPI(
+        title="eduTAP Google Wallet Callback Service",
+        description=(
+            "A fastAPI based eduTAP Google Wallet Callback Service, to handle "
+            "register and unregister events of passes in the device wallets."
+        ),
+        summary="",
+        version=__version__,
+        openapi_url="/openapi.json" if is_development else None,
+        lifespan=lifespan,
+        root_path="/wallet/google",
+    )
+
+    # The route this service exists for. It belongs to `edutap.wallet_google`;
+    # all this package does is mount it and register the handler it calls.
+    app.include_router(router_callback, prefix="/v1")
+    app.add_api_route("/", read_root, methods=["GET"])
+    app.add_api_route("/", basic_health_check, methods=["HEAD"])
+    return app
+
+
+app = create_app()
+
+
+def main() -> None:
     """Run the service under uvicorn -- the console script entry point."""
     uvicorn.run(
         app=app,

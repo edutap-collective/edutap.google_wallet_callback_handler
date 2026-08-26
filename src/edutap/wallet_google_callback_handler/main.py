@@ -19,11 +19,9 @@ from importlib.metadata import version
 from starlette.status import HTTP_200_OK
 from starlette.status import HTTP_503_SERVICE_UNAVAILABLE
 
-import asyncio
 import os
 import sentry_sdk
 import uvicorn
-import uvloop
 
 
 __version__ = version("edutap.wallet_google_callback_handler")
@@ -57,22 +55,15 @@ async def lifespan(app: FastAPI):
             environment=settings.ENVIRONMENT,
         )
 
-    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-
-    # Add fastAPI Router for Google Callback Service
-    app.include_router(router_callback, prefix="/v1")
-    # Enable or Disable docs and openapi.json paths
-    if settings.ENVIRONMENT == "development":
-        app.add_route("/openapi.json", route=app.openapi(), methods={"GET"})
-
     logger.info("%s: Service Ready", SERVICE_NAME)
     yield
-    # Shutdown
+
     logger.info("%s: Initializing Service Shutdown", SERVICE_NAME)
-
-    # task.cancel()
-
-    logger.info("%s: Service Shutdown completed")
+    # The Kafka producer is the one resource that outlives a request and has to
+    # be closed by someone. It used to be handed to `atexit`, which cannot await
+    # anything -- see the commit message.
+    await kafka_session_manager.close()
+    logger.info("%s: Service Shutdown completed", SERVICE_NAME)
 
 
 app = FastAPI(
@@ -84,6 +75,11 @@ app = FastAPI(
     lifespan=lifespan,
     root_path="/wallet/google",
 )
+
+
+# The route this service exists for. It belongs to `edutap.wallet_google`; all
+# this package does is mount it and register the handler it calls.
+app.include_router(router_callback, prefix="/v1")
 
 
 @app.get("/")

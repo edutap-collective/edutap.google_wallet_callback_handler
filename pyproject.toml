@@ -108,6 +108,10 @@ where = ["src"]
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
+# The suite is warning-free as of this commit, and it stays that way. It spent
+# months printing `coroutine 'KafkaSessionManager._exit_event' was never awaited`
+# on every run without anyone reading it.
+filterwarnings = ["error"]
 
 # The lint, type checker and tox blocks below follow `edutap.wallet_google`
 # rather than inventing a second house style for the same family: the isort

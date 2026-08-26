@@ -13,7 +13,6 @@ from edutap.wallet_google_callback_handler.log import logger
 from pydantic_settings import BaseSettings
 from pydantic_settings import SettingsConfigDict
 
-import atexit
 import pathlib
 import threading
 
@@ -58,9 +57,13 @@ settings = KafkaSettings()
 class KafkaSessionManager:
     """Hands out the process-wide Kafka producer, opening it on first use."""
 
-    async def _exit_event(self):
-        if getattr(_THREADLOCAL, "kafka_producer", None) is not None:
-            await _THREADLOCAL.kafka_producer.stop()
+    async def close(self) -> None:
+        """Stop the producer this thread holds, if it ever opened one."""
+        producer = getattr(_THREADLOCAL, "kafka_producer", None)
+        if producer is None:
+            return
+        await producer.stop()
+        _THREADLOCAL.kafka_producer = None
 
     async def _establish_kafka_producer(self):
         settings = KafkaSettings()
@@ -96,7 +99,6 @@ class KafkaSessionManager:
         except KafkaConnectionError as e:
             logger.error(e)
             raise e
-        atexit.register(self._exit_event)
         return producer
 
     async def kafka_producer(self) -> AIOKafkaProducer:

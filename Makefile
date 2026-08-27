@@ -12,6 +12,7 @@ RUN := $(UV) run --no-sync
 
 COMPOSE_TEST := compose.test.yml
 IMAGE := edutap-wallet-google-callback-handler:local
+RELEASE_IMAGE := ghcr.io/edutap-collective/edutap.wallet_google_callback_handler
 
 .DEFAULT_GOAL := help
 
@@ -63,6 +64,56 @@ test-matrix:  ## the fast suite across every supported Python version
 .PHONY: docker-build
 docker-build:  ## build the container image for the cluster's architecture
 	docker build --platform linux/amd64 --tag $(IMAGE) .
+
+# --- Releases --------------------------------------------------------------
+#
+# The release tag is a UTC timestamp, `YYYY-MM-DD_HHmm`, and it becomes the image
+# tag verbatim. Not a semantic version: this is a service, not a library. It is
+# not on an index, nothing imports it, and what it ships is a container -- so the
+# artefact carries a state rather than a promise, and a number would claim
+# something nobody can act on. The `lmu_edutap_*` services use the same form.
+#
+# `release` always reads the clock at the moment it runs, so the tag cannot be
+# stale. Override it only to repeat a release that failed after tagging:
+#
+#     make release RELEASE_TAG=2026-08-27_0930
+RELEASE_TAG ?= $(shell date -u +%Y-%m-%d_%H%M)
+RELEASE_BRANCH ?= main
+
+# Check before tagging, not after. A tag on a commit that is not on the server
+# points into nothing for everyone else -- and the workflow that builds on the
+# tag would check out a commit the runner cannot fetch.
+.PHONY: release-check
+release-check:  ## verify the checkout is clean, pushed, and not yet tagged
+	@fail=0; \
+	head=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$head" != "$(RELEASE_BRANCH)" ]; then \
+	  printf "on branch '%s', expected '%s'\n" "$$head" "$(RELEASE_BRANCH)"; fail=1; fi; \
+	if [ -n "$$(git status --porcelain)" ]; then \
+	  echo "the working tree has uncommitted changes"; fail=1; fi; \
+	git fetch --quiet origin || true; \
+	ahead=$$(git rev-list --count origin/$(RELEASE_BRANCH)..HEAD 2>/dev/null); \
+	if [ "$$ahead" != "0" ]; then \
+	  printf "%s commit(s) NOT PUSHED\n" "$$ahead"; fail=1; fi; \
+	if git rev-parse -q --verify "refs/tags/$(RELEASE_TAG)" >/dev/null; then \
+	  printf "tag %s already exists\n" "$(RELEASE_TAG)"; fail=1; fi; \
+	[ $$fail -eq 0 ] || { echo ""; echo "release-check failed -- nothing was tagged."; exit 1; }; \
+	echo "release-check passed: clean, pushed, no tag $(RELEASE_TAG) yet"
+
+.PHONY: release
+release: release-check  ## tag the current main with a UTC timestamp and push it
+	git tag -a "$(RELEASE_TAG)" -m "Release $(RELEASE_TAG)"
+	git push origin "$(RELEASE_TAG)"
+	@echo ""
+	@echo "Tag $(RELEASE_TAG) is pushed. The workflow now builds and publishes"
+	@echo "ghcr.io/edutap-collective/edutap.wallet_google_callback_handler:$(RELEASE_TAG) ab."
+	@echo "Follow it with: gh run list --branch $(RELEASE_TAG)"
+
+.PHONY: release-digest
+release-digest:  ## print the pin for ansible-app-server: <tag>@sha256:...
+	@docker pull --platform linux/amd64 -q $(RELEASE_IMAGE):$(RELEASE_TAG) >/dev/null
+	@printf '%s@%s\n' "$(RELEASE_TAG)" \
+	  "$$(docker inspect --format '{{index .RepoDigests 0}}' $(RELEASE_IMAGE):$(RELEASE_TAG) | cut -d@ -f2)"
 
 .PHONY: clean
 clean:  ## remove build and tool caches

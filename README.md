@@ -118,6 +118,40 @@ every cluster node is x86_64, and an arm64 image fails at start with `exec
 format error`. It runs as an unprivileged user and listens on `$HTTP_PORT`,
 which defaults to 8086.
 
+### Releases
+
+The release tag is a UTC timestamp, `YYYY-MM-DD_HHmm`, and it becomes the image
+tag verbatim.
+
+Not a semantic version, and the distinction is the artefact rather than the
+repository it sits in: **a service is dated, a library is versioned.** This one
+is a service — it is not on an index, nothing imports it, and what it ships is a
+container. The tag therefore says *which state* is deployed. A number would claim
+something nobody can act on: there is no consumer to whom a major bump would mean
+anything. `edutap.wallet_google`, which is a library, stays on semantic versions
+for exactly the same reason read the other way round.
+
+```bash
+make release        # release-check, then tag main with the current UTC minute and push
+make release-check  # the checks on their own: clean, pushed, not already tagged
+make release-digest # the pin for ansible-app-server: <tag>@sha256:...
+```
+
+`make release` reads the clock when it runs, so the tag cannot be stale. Override
+it only to repeat a release that failed *after* tagging:
+
+```bash
+make release RELEASE_TAG=2026-08-27_0930
+```
+
+The checks come before the tag, not after: a tag on a commit that is not on the
+server points into nothing for everyone else, and the workflow that builds on the
+tag would check out a commit the runner cannot fetch.
+
+`latest` still follows the tip of `main` and means nothing more than that. A
+deployment pins the dated tag together with its digest — `make release-digest`
+prints that pair in the form `group_vars/lrz_cc/edutap_production.yml` expects.
+
 ### Configuration
 
 Three environment namespaces meet in this service, and they are not

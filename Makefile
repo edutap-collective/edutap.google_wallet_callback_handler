@@ -106,14 +106,31 @@ release: release-check  ## tag the current main with a UTC timestamp and push it
 	git push origin "$(RELEASE_TAG)"
 	@echo ""
 	@echo "Tag $(RELEASE_TAG) is pushed. The workflow now builds and publishes"
-	@echo "ghcr.io/edutap-collective/edutap.wallet_google_callback_handler:$(RELEASE_TAG) ab."
+	@echo "ghcr.io/edutap-collective/edutap.wallet_google_callback_handler:$(RELEASE_TAG)"
 	@echo "Follow it with: gh run list --branch $(RELEASE_TAG)"
+
+# Which tag to look up: an explicit `RELEASE_TAG=` on the command line wins,
+# otherwise the newest release tag in this checkout.
+#
+# Emphatically NOT the current minute. `release-digest` runs after `release`, and
+# by then the clock has moved on -- which is exactly how this failed the first
+# time anyone used it, one minute after tagging:
+#
+#     failed to resolve reference "...:2026-08-27_0130": not found
+#
+# while the tag that existed was 2026-08-27_0129.
+LATEST_RELEASE_TAG = $(shell git tag --list '20[0-9][0-9]-[0-1][0-9]-[0-3][0-9]_[0-2][0-9][0-5][0-9]' --sort=-creatordate | head -n 1)
+DIGEST_TAG = $(if $(filter command line,$(origin RELEASE_TAG)),$(RELEASE_TAG),$(LATEST_RELEASE_TAG))
 
 .PHONY: release-digest
 release-digest:  ## print the pin for ansible-app-server: <tag>@sha256:...
-	@docker pull --platform linux/amd64 -q $(RELEASE_IMAGE):$(RELEASE_TAG) >/dev/null
-	@printf '%s@%s\n' "$(RELEASE_TAG)" \
-	  "$$(docker inspect --format '{{index .RepoDigests 0}}' $(RELEASE_IMAGE):$(RELEASE_TAG) | cut -d@ -f2)"
+	@test -n "$(DIGEST_TAG)" || { \
+	  echo "no release tag in this checkout -- run 'make release' first,"; \
+	  echo "or name one: make release-digest RELEASE_TAG=2026-08-27_0129"; \
+	  exit 1; }
+	@docker pull --platform linux/amd64 -q $(RELEASE_IMAGE):$(DIGEST_TAG) >/dev/null
+	@printf '%s@%s\n' "$(DIGEST_TAG)" \
+	  "$$(docker inspect --format '{{index .RepoDigests 0}}' $(RELEASE_IMAGE):$(DIGEST_TAG) | cut -d@ -f2)"
 
 .PHONY: clean
 clean:  ## remove build and tool caches

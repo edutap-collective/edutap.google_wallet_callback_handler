@@ -32,6 +32,19 @@ already caused breakage:
 Before any rename, list which occurrences carry which of the three roles. A blanket
 search-and-replace cannot tell them apart.
 
+**A service is dated, a library is versioned.** The release tag here is a UTC
+timestamp, `YYYY-MM-DD_HHmm`, and `make release` is what sets it. The dividing
+line is the artefact, not the organisation the repository sits in: this package
+is `edutap.*` like the library next to it, but it is not on an index, nothing
+imports it, and what it ships is a container. Its tag says which state is
+deployed. A semantic version would claim something nobody can act on — there is
+no consumer to whom a major bump would mean anything.
+
+Two things have to agree for that to work, and until 2026-08-27 neither did: the
+publish workflow triggered on `v*.*.*`, so a dated tag built nothing at all, and
+its metadata rules were `type=semver`, which cannot match a timestamp. A tag that
+produces no image is invisible — there is no error anywhere.
+
 **The callback comes from Google's servers, not from a device.** There is no device
 field in the payload and there never will be — Google does not disclose how many
 devices hold a pass. Do not model one.

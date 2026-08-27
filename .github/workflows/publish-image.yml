@@ -7,10 +7,20 @@ name: Publish container image
 # That property matters: the packages under the pre-rename names are stale by
 # design, and nothing in this file has to be touched when a repository moves.
 
+# A release is a UTC timestamp, not a version number.
+#
+# This is a service: it is not on PyPI, nothing imports it, and what it ships is
+# a container. The artefact therefore carries a *state*, not a promise, and the
+# house convention for that is `YYYY-MM-DD_HHmm` in UTC -- the same form the
+# `lmu_edutap_*` services use. Semantic versions are for the libraries, where a
+# number tells whoever depends on them what changed.
+#
+# The glob used to be `v*.*.*`, which meant a dated tag triggered nothing at all:
+# no build, no image, no error. `make release` produces exactly the shape below.
 on:
   push:
     branches: ["main"]
-    tags: ["v*.*.*"]
+    tags: ["20[0-9][0-9]-[0-1][0-9]-[0-3][0-9]_[0-2][0-9][0-5][0-9]"]
   pull_request:
     branches: ["main"]
   workflow_dispatch:
@@ -60,13 +70,17 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          # `latest` only ever points at main. Deployments that pin a version
-          # use the semver tags; the sha tag is the unambiguous fallback.
+          # `latest` means "the tip of main" and nothing more -- honest, and not
+          # what a deployment should pin. Deployments pin the dated release tag
+          # together with its digest; the sha tag is the unambiguous fallback.
+          #
+          # `type=ref,event=tag` takes the tag name verbatim. The `type=semver`
+          # rules it replaces could not match a timestamp, so a dated tag would
+          # have produced an image labelled only by its commit sha.
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=tag
             type=sha,format=long
             type=raw,value=latest,enable={{is_default_branch}}
 

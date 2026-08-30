@@ -37,7 +37,26 @@ dependencies = [
     # block diverge -- invisibly, because a consumer that stops recognising a
     # message parks it rather than failing.
     "edutap.data_models>=0.3.0",
-    "sentry-sdk[fastapi]",
+    # Error reporting, tracing and structured logging in one call, from the house
+    # package. It replaces the hand-written `sentry_sdk.init()` this service used
+    # to carry -- the option set behind it was chosen against measurements, and a
+    # second copy of it here could only drift.
+    #
+    # It brings sentry-sdk, structlog and logfire with it, which is why
+    # `sentry-sdk[fastapi]` is gone from this list: naming it here would pin a
+    # version against the house package's own resolution.
+    #
+    # `[fastapi]` IS NOT OPTIONAL: `instrument_fastapi_safely` needs
+    # `opentelemetry-instrumentation-fastapi`, and bare `logfire` does not carry
+    # it. Without the extra the start ends in `ModuleNotFoundError:
+    # opentelemetry.instrumentation.asgi` -- but ONLY where
+    # `OTEL_EXPORTER_OTLP_ENDPOINT` is set, which is a cluster and not a
+    # developer's machine.
+    #
+    # 0.1.6 is the floor: only it passes a `release` to `sentry_sdk.init`, without
+    # which every event carries an empty version and "fixed in the next release"
+    # has nothing to hang on.
+    "edutap.observability_settings[fastapi]>=0.1.6,<0.2",
     "fastapi>=0.115.7",
     "uvicorn[standard]>=0.34.0",
     "pydantic>=2.0",

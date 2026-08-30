@@ -14,6 +14,10 @@ point at.
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from edutap.observability_settings import install_observability
+from edutap.observability_settings import instrument_fastapi_safely
+from edutap.observability_settings import ObservabilitySettings
+from edutap.observability_settings import OTLP_ENDPOINT_VARIABLE
 from edutap.wallet_google.handlers.fastapi import router_callback
 from edutap.wallet_google_callback_handler import kafka as kafka_module
 from edutap.wallet_google_callback_handler.kafka import KafkaSession
@@ -29,7 +33,7 @@ from starlette.status import HTTP_200_OK
 from starlette.status import HTTP_503_SERVICE_UNAVAILABLE
 from typing import Annotated
 
-import sentry_sdk
+import os
 import uvicorn
 
 
@@ -38,6 +42,34 @@ __version__ = version("edutap.wallet_google_callback_handler")
 SERVICE_NAME = (
     "eduTAP Google Wallet Callback Service (edutap.wallet_google_callback_handler)"
 )
+
+#: The name telemetry travels under, which is NOT `SERVICE_NAME` above.
+#:
+#: That one is prose meant for a log line; this one becomes `service.name` on every
+#: span and log record, and in Loki `service_name` is the only indexed label. A label
+#: carrying spaces and parentheses is one nobody can select on, so the distribution
+#: name is used instead -- the same spelling `pip show` prints, which is what the
+#: sibling services do.
+DISTRIBUTION_NAME = "edutap.wallet_google_callback_handler"
+
+
+def exports_to_a_collector(observability: ObservabilitySettings) -> bool:
+    """Whether an exporter will actually carry a span off this process.
+
+    Both conditions are needed: `telemetry_enabled` is the deliberate off switch, and
+    the endpoint decides whether anything is listening. The endpoint is read from the
+    environment rather than from a field because `OTEL_EXPORTER_OTLP_ENDPOINT` is the
+    variable every OpenTelemetry SDK reads by itself -- giving it a second name here
+    would ask an operator to set the same address twice.
+
+    At module level rather than inside `create_app` so it can be asserted on its own.
+    A three-line gate hidden in a closure is a gate nobody notices going wrong, and
+    what it guards is not free: instrumentation patches the application whether or not
+    a receiver exists.
+    """
+    return observability.telemetry_enabled and bool(
+        os.environ.get(OTLP_ENDPOINT_VARIABLE)
+    )
 
 
 def get_session_manager() -> KafkaSession:
@@ -85,41 +117,61 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     is_development = settings.ENVIRONMENT == "development"
 
+    # Error reporting, tracing and structured logging in one call, from the house
+    # package. It replaces the `sentry_sdk.init()` that used to sit in `lifespan`
+    # and repeat that package's option set by hand -- the comment there asked for
+    # the two to be kept in step, and this is the version where they cannot drift.
+    #
+    # THE DSN AND THE ENVIRONMENT ARE PASSED IN, not read by `ObservabilitySettings`
+    # itself, and that is the whole subtlety of this call. That class reads the bare
+    # `EDUTAP_` prefix; this package deliberately moved off it (see `settings.py`)
+    # because `EDUTAP_SENTRY_DSN` reads like an organisation-wide setting while it
+    # only ever meant this one service. The deployment sets
+    # `EDUTAP_WALLET_GOOGLE_CALLBACK_HANDLER_SENTRY_DSN`, so letting the shared class
+    # look the DSN up itself would find nothing and turn error reporting off in
+    # production -- silently, because an absent DSN is a supported state.
+    #
+    # Everything the class is left to resolve on its own is genuinely stack-wide:
+    # `telemetry_enabled`, `log_level`, and the pseudonym settings.
+    #
+    # LATER THAN IN THE SIBLING SERVICES, and knowingly. `edutap.image_api` installs
+    # this at import, before anything resolves settings, so that a process refusing
+    # to start is still reported. Here the DSN lives in this package's own settings,
+    # so `Settings()` must come first; the unreported window is that one call.
+    observability = ObservabilitySettings(
+        sentry_dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+    )
+    install_observability(
+        observability,
+        service_name=DISTRIBUTION_NAME,
+        service_version=__version__,
+    )
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         """Start and stop the parts of the service that outlive a request."""
         configure_logging()
         logger.info("%s: Initializing Service Start", SERVICE_NAME)
 
-        # These five options each contradict the SDK's own default, and they are
-        # the same set that `sentry_options()` in `edutap.observability_settings`
-        # installs for the sibling services, where the reasoning behind each one
-        # is written out against a measurement. This package initializes the SDK
-        # itself rather than going through that one, so the set is repeated here.
-        # Keep the two in step.
+        # THE HTTP SIDE OF OBSERVABILITY. The call in `create_app` configures the
+        # *process* -- error reporting, the exporter, structured logging -- and knows
+        # nothing about this application, so it produces no request spans by itself.
+        # Instrumenting needs the finished route table, and the routes are registered
+        # after `create_app` builds the application object.
         #
-        # Until 2026-08-24 this call did the opposite: `send_default_pii=True`
-        # and local variables left on the SDK default, which is also True. It was
-        # harmless only while `SENTRY_DSN` was empty. This service receives
-        # Google's callbacks, so its request bodies carry the identifying datum,
-        # and with locals on a bearer token sits in the ASGI scope and reappears
-        # in dozens of frames of an event whose rendered `authorization` header
-        # reads `[Filtered]` -- Sentry's scrubber matches key names, it does not
-        # walk a list of byte tuples.
+        # `instrument_fastapi_safely` rather than `logfire.instrument_fastapi`: the
+        # bare instrumentation writes the raw request path into five span attributes.
+        # This service receives Google's callbacks, whose paths carry the identifying
+        # datum, so the house helper substitutes the route template and thereby
+        # honours `person_uid_mode`.
         #
-        # `traces_sample_rate=0` because the receiving end is an error tracker
-        # and not an APM: at 1.0 every request became a transaction event.
-        if settings.SENTRY_DSN:
-            sentry_sdk.init(
-                dsn=settings.SENTRY_DSN,
-                send_default_pii=False,
-                include_local_variables=False,
-                max_request_body_size="never",
-                max_breadcrumbs=0,
-                traces_sample_rate=0,
-                debug=is_development,
-                environment=settings.ENVIRONMENT,
-            )
+        # ONLY WHEN SOMETHING EXPORTS. Instrumentation patches the application whether
+        # or not a receiver exists, and a span nobody collects is work done on every
+        # request.
+        if exports_to_a_collector(observability):
+            instrument_fastapi_safely(app, observability)
+            logger.info("%s: FastAPI instrumentation active", SERVICE_NAME)
 
         logger.info("%s: Service Ready", SERVICE_NAME)
         yield

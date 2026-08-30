@@ -9,9 +9,9 @@ property that could not be asserted at all until the factory existed.
 from edutap.wallet_google_callback_handler import main as main_module
 from edutap.wallet_google_callback_handler.main import create_app
 from edutap.wallet_google_callback_handler.settings import Settings
-from fastapi.testclient import TestClient
 
 import pytest
+import sentry_sdk
 
 
 def _schema_paths(app) -> set[str]:
@@ -82,33 +82,27 @@ def test_the_service_is_mounted_under_its_deployment_prefix():
 
 
 def test_sentry_is_initialised_without_personal_data(monkeypatch):
-    """The six options of the 2026-08-24 fix, pinned.
+    """The six options of the 2026-08-24 fix, pinned -- now installed, not repeated.
 
-    Each one contradicts the SDK's own default, which is what makes them easy to
-    lose: delete the arguments and the call still works, and the leak is only
-    visible in events on a server nobody reads every day. Until that date this
-    call had `send_default_pii=True` and local variables on the SDK default,
-    which is also True -- so a bearer token in the ASGI scope reappeared in dozens
-    of frames of an event whose rendered `authorization` header read
-    `[Filtered]`.
+    They no longer live in this package: `install_observability` applies the set that
+    `edutap.observability_settings` chose against measurements, and the reasoning for
+    each option is written out there. What stays worth asserting HERE is that the set
+    still arrives, because the way to lose it is no longer to delete arguments but to
+    stop routing through that call at all.
 
-    Testable at all only since the application became a factory: the SDK is
-    initialised in the lifespan, from settings the test now gets to choose.
+    Patched on the `sentry_sdk` module rather than on an attribute of `main`: the
+    house package looks `init` up on the module when it calls it, and this package no
+    longer imports the SDK.
     """
     captured: dict = {}
-    monkeypatch.setattr(
-        main_module.sentry_sdk, "init", lambda **kwargs: captured.update(kwargs)
-    )
+    monkeypatch.setattr(sentry_sdk, "init", lambda **kwargs: captured.update(kwargs))
 
-    with TestClient(
-        create_app(
-            Settings(
-                ENVIRONMENT="production",
-                SENTRY_DSN="https://public@sentry.invalid/1",
-            )
+    create_app(
+        Settings(
+            ENVIRONMENT="production",
+            SENTRY_DSN="https://public@sentry.invalid/1",
         )
-    ):
-        pass
+    )
 
     assert captured["send_default_pii"] is False
     assert captured["include_local_variables"] is False
@@ -116,21 +110,71 @@ def test_sentry_is_initialised_without_personal_data(monkeypatch):
     assert captured["max_breadcrumbs"] == 0
     assert captured["traces_sample_rate"] == 0
     assert captured["environment"] == "production"
-    assert captured["debug"] is False
+
+
+def test_the_dsn_is_read_under_this_packages_own_prefix(monkeypatch):
+    """The regression that would otherwise be silent.
+
+    `ObservabilitySettings` reads the bare `EDUTAP_` prefix. This package moved off
+    it on purpose (see `settings.py`): `EDUTAP_SENTRY_DSN` reads like an
+    organisation-wide setting while it only ever meant this one service, and the
+    deployment accordingly sets `EDUTAP_WALLET_GOOGLE_CALLBACK_HANDLER_SENTRY_DSN`.
+
+    So the DSN is handed to `install_observability` rather than looked up by it. Were
+    that to change, error reporting would switch itself off in production and nothing
+    would say so -- an absent DSN is a supported state, not a failure.
+    """
+    captured: dict = {}
+    monkeypatch.setattr(sentry_sdk, "init", lambda **kwargs: captured.update(kwargs))
+    monkeypatch.setenv(
+        "EDUTAP_WALLET_GOOGLE_CALLBACK_HANDLER_SENTRY_DSN",
+        "https://public@sentry.invalid/2",
+    )
+    monkeypatch.delenv("EDUTAP_SENTRY_DSN", raising=False)
+
+    create_app()
+
+    assert captured["dsn"] == "https://public@sentry.invalid/2"
+
+
+def test_telemetry_travels_under_the_distribution_name():
+    """`service.name` has to be selectable in Loki, where it is the only index label.
+
+    `SERVICE_NAME` is prose for a log line -- spaces and parentheses -- and would make
+    a label nobody can query. The distribution name is what `pip show` prints and what
+    the sibling services use.
+    """
+    assert main_module.DISTRIBUTION_NAME == "edutap.wallet_google_callback_handler"
 
 
 def test_without_a_dsn_sentry_is_not_initialised_at_all(monkeypatch):
     """An empty DSN is how the deployment switches the error tracker off.
 
-    It is also what kept the leak above harmless for as long as it existed, so
+    It is also what kept the 2026-08-24 leak harmless for as long as it existed, so
     the two belong in the same file.
     """
     calls = []
-    monkeypatch.setattr(
-        main_module.sentry_sdk, "init", lambda **kwargs: calls.append(kwargs)
-    )
+    monkeypatch.setattr(sentry_sdk, "init", lambda **kwargs: calls.append(kwargs))
 
-    with TestClient(create_app(Settings(SENTRY_DSN=None))):
-        pass
+    create_app(Settings(SENTRY_DSN=None))
 
     assert calls == []
+
+
+def test_instrumentation_is_gated_on_there_being_a_receiver(monkeypatch):
+    """Instrumentation costs something on every request; it is not installed blind.
+
+    `logfire.instrument_fastapi` patches the application whether or not anything
+    collects what it produces, so the gate is what keeps an unmonitored deployment
+    from paying for spans nobody reads.
+    """
+    from edutap.observability_settings import ObservabilitySettings
+
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+    assert not main_module.exports_to_a_collector(ObservabilitySettings())
+
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector.invalid:4318")
+    assert main_module.exports_to_a_collector(ObservabilitySettings())
+
+    monkeypatch.setenv("EDUTAP_TELEMETRY_ENABLED", "false")
+    assert not main_module.exports_to_a_collector(ObservabilitySettings())
